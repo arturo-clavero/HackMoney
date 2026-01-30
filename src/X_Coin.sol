@@ -38,7 +38,7 @@ contract Coin is ERC20 {
         revert("Approvals disabled");
     }
 
-    function transfer(address to, uint256 value) public override returns (bool) {
+    function transfer(address, uint256) public override returns (bool) {
         revert("Transfers disabled");
     }
 

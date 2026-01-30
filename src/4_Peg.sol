@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Engine} from "./3_Engine.sol";
+import {Storage} from "./1_Storage.sol";
 
 
 /**
@@ -15,13 +16,15 @@ import {Engine} from "./3_Engine.sol";
  * @notice Handles Stable Collateral
  */
 contract HardPeg is Engine {
-
+    constructor(address owner, address timelock) Storage(owner, timelock, 0){}
 }
 
 /**
  * @notice Handles Stable Collateral + Yield
  */
 contract MediumPeg is Engine {
+    constructor(address owner, address timelock) 
+    Storage(owner, timelock, 1){}
 
 }
 
@@ -29,5 +32,7 @@ contract MediumPeg is Engine {
  * @notice Handles Multi Collateral (Any non yield)
  */
 contract SoftPeg is Engine {
+    constructor(address owner, address timelock) 
+    Storage(owner, timelock, 2){}
 
 }

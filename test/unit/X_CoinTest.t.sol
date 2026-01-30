@@ -24,7 +24,7 @@ contract CoinTest is Test {
         vm.stopPrank();
     }
 
-    function testConstructor() public {
+    function testConstructor() public view {
         assertEq(coin.name(), "TestCoin");
         assertEq(coin.symbol(), "T");
     }

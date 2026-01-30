@@ -11,5 +11,6 @@ import {App} from "./2_App.sol";
  * @dev handles collateral deposits, withdrawals, mints, burns, redeamption, liquidation etc
  */
 abstract contract Engine is Oracle, Security, App {
-
+    constructor(){}
 }
+
