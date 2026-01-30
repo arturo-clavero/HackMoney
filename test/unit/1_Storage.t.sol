@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/1_Storage.sol";
-import {Collateral} from "../../src/1_Storage.sol";
+import {Storage, Collateral} from "../../src/1_Storage.sol";
+
 
 contract TestPeg is Storage {
     constructor(address _owner, address _timelock, uint256 pegType) 
@@ -12,9 +12,6 @@ contract TestPeg is Storage {
     function getCollateralData(address tok) external view returns (Collateral memory){
     return Storage.collateralData[tok]; }
 
-    function hasRole(uint256 role) external view onlyRole(role) returns (bool) {
-        return true;
-    }
 }
 
 contract StorageTest is Test {
@@ -34,17 +31,12 @@ contract StorageTest is Test {
         vm.startPrank(owner);
         storageContract.grantRole(user, COLLATERAL_MANAGER);
         vm.stopPrank();
-        vm.startPrank(user);
-        assertTrue(storageContract.hasRole(COLLATERAL_MANAGER));
-        vm.stopPrank();
+        assertTrue(storageContract.hasRole(user, COLLATERAL_MANAGER));
 
         vm.startPrank(owner);
         storageContract.revokeRole(user, COLLATERAL_MANAGER);
         vm.stopPrank();
-        vm.startPrank(user);
-        vm.expectRevert();
-        storageContract.hasRole(COLLATERAL_MANAGER);
-        vm.stopPrank();
+        assertFalse(storageContract.hasRole(user, COLLATERAL_MANAGER));
     }
 
     function testOnlyOwnerFailsForNonOwner() public {

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-/**
- * @notice Storage of all shared parameters that are not dynamic
- * @dev Inherited by all sub-modules [2]
- */
 
 struct Collateral {
     address     tokenAddress;//0 -> ETH
@@ -15,6 +11,31 @@ struct Collateral {
     uint256       mode;
 }
 
+
+/**
+ * @notice Storage of all shared parameters that are not dynamic
+ * @dev Inherited by all sub-modules [2]
+ */
+
+ /**
+ * @dev Roles are stored as bitflags in a uint256 for gas efficiency:
+ *      - OWNER = 1 << 0
+ *      - COLLATERAL_MANAGER = 1 << 1
+ *      - ORACLE_MANAGER = 1 << 2
+ *      - GOVERNOR = 1 << 3
+ * 
+ *      Only the OWNER can grant or revoke roles.
+ */
+
+/**
+ * @dev Collateral modes are bitflags, so multiple modes can be allowed for a peg type:
+ *      - STABLE = 1 << 0
+ *      - VOLATILE = 1 << 1
+ *      - YIELD = 1 << 2
+ *      - PAUSED = 1 << 3
+ *
+ *      `i_allowedCollateralModes` defines which modes are permitted for this Storage instance.
+ */
 abstract contract Storage {
 
    //constants:
@@ -73,6 +94,10 @@ abstract contract Storage {
         _;
     }
 
+    function hasRole(address user, uint256 role) external view returns (bool) {
+        return roles[user] & role != 0;
+    }
+
     function grantRole(address user, uint256 role) external onlyOwner() {
         roles[user] |= role;
     }
@@ -80,8 +105,6 @@ abstract contract Storage {
     function revokeRole(address user, uint256 role) external onlyOwner {
         roles[user] &= ~role;
     }
-
-
 
     function updateCollateral(Collateral calldata updatedCol) external onlyTimeLock(){
         require(i_allowedCollateralModes & updatedCol.mode != 0);
