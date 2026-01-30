@@ -7,6 +7,6 @@ import {Storage} from "./1_Storage.sol";
  * @notice Security specific functions and data 
  * @dev for minting and other security related operations
  */
-abstract contract App is Security {
+abstract contract Security is Storage {
 
 }
