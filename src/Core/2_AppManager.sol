@@ -97,4 +97,12 @@ abstract contract AppManager is Storage {
     function _mintAppToken(uint256 appID, address to, uint256 value) internal{
         IPrivateCoin(appData[appID].coin).mint(msg.sender, to, value);
     }
+
+    function _burnAppToken(uint256 appID, uint256 value) internal pure{
+        IPrivateCoin(appData[appID].coin).burn(msg.sender, value);
+    }
+
+    function _transferAppToken(uint256 appID, address to, uint256 value) internal pure{
+        IPrivateCoin(appData[appID].coin).transferFrom(msg.sender, to, value);
+    }
 }
