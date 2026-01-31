@@ -27,11 +27,6 @@ library Actions {
     }   
 }
 
-struct Position {
-    mapping(address token => uint256 amount) collateral;
-    uint256 debt;
-}
-
 
 struct Collateral {
     address     tokenAddress;//0 -> ETH
@@ -42,6 +37,10 @@ struct Collateral {
     uint256       mode;
 }
 
+struct Position {
+    mapping(address token => uint256 amount) collateral;
+    uint256 debt;
+}
 /**
  * @notice ERC20 token controlled by a central engine contract.
  *          One token deployed per new App Instance.
@@ -57,6 +56,7 @@ contract Coin is ERC20 {
     mapping(address user => uint256 actions) private _permission;
 
     mapping(address token => Collateral) private _supportedCollateral;
+    address[] allowedTokens;
     mapping(address user => Position) private _positions;
 
     event NeedToSetMorePermissions(uint256 actions, address[] users);
@@ -69,7 +69,7 @@ contract Coin is ERC20 {
         uint256 appActions,
         uint256 userActions,
         address[] memory users,
-        address[] memory supportedTokens
+        Collateral[] memory cacheCollateral
     ) ERC20(name, symbol) {
 
         _protocol = protocol;
@@ -77,19 +77,19 @@ contract Coin is ERC20 {
         _userActions = userActions;
         _appActions = appActions;
         _permission[owner] |= appActions;
+        grantPermission(users, userActions);
+
         //collateral
         uint256 len = supportedTokens.length;
         require (len < Actions.MAX_ARRAY_LEN);
-        // Collateral[] memory cacheCol = msg.sender.cache;
         for (uint256 i = 0; i < len; i ++){
-            // _supportedCollateral[supportedTokens[i]] = cacheCol[i];
+            _supportedCollateral[cacheCollateral[i].tokenAddress] = cacheCollateral[i];
         }
-        //
-        grantPermission(users, userActions);
+
         if (users.length > Actions.MAX_ARRAY_LEN)
             emit NeedToSetMorePermissions(userActions, users);
-
     }
+
     modifier onlyProtocol(){
         require(msg.sender == _protocol);
         _;
@@ -99,23 +99,33 @@ contract Coin is ERC20 {
         require(msg.sender == _app);
         _;
     }
+    
 
     function deposit(address token, uint256 value) external {
         _needsPermission(msg.sender, Actions.MINT);
         require(_supportedCollateral[token].liquidityThreshold > 0);
-        //if token != address(0)
-            //value == msg.value;
-        // require(value > 0 || msg.value > 0);
-        //transfer here
-        _positions[msg.sender].collateral[token] += value;
+        if (token == address(0)) {// ETH deposit 
+            require(msg.value > 0);
+            value = msg.value;
+        } else { //ERC20 deposit
+            require(msg.value == 0);
+            require(value > 0);
+            //safe transfer?
+            IERC20(token).transferFrom(msg.sender, address(this), value);
+            _positions[msg.sender].collateral[token] += value;
+        }   
+        _positions[msg.sender].collateral[address(0)] += value;
+        // Position storage pos = _positions[msg.sender];
+        // pos.collateral[token] += value;
     }
+        
 
     function mint(address account, uint256 value) external {
         _needsPermission(msg.sender, Actions.MINT);
         _needsPermission(account, Actions.HOLD);
         //secure_mint
         Position storage pos = _positions[account];
-        _calculateMaxMint(pos, value);
+        require(value < _calculateMaxMint(pos, value));
         pos.debt += value;
         _mint(account, value);
 
@@ -172,26 +182,28 @@ contract Coin is ERC20 {
     }
 
 //helpers :
-
     function _isPositionHealthy(address user) internal returns (bool) {
-        return true;
+        Position storage pos = _positions[user];
+        uint256 colValue;
+        uint256 len = tokensAllowed.length;
+        for (uint256 i = 0; i < len; i ++){
+            address token = tokensAllowed[i];
+            uint256 amount = pos.collateral[token];
+            uint256 price = getPrice(token, amount); //cross contract !
+            colValue += collateral[token].liquidityThreshold * price * amount;
+        }
+        return (colValue < pos.debt);
     }
 
-    function _calculateMaxMint(Position storage pos, uint256 value) internal {
-
+    function _calculateMaxMint(Positions storage pos) internal returns(uint256 maxMint) {
+        uint256 maxMint;
+        uint256 len = tokensAllowed.length;
+        for (uint256 i = 0; i < len; i ++){
+            address token = tokensAllowed[i];
+            uint256 amount = pos.collateral[token];
+            uint256 price = getPrice(token, amount); //cross contract !
+            maxMint += collateral[token].LTV * price * amount;
+        }
+        maxMint -= debt;
     }
-
-//NO use cases?
-    // function hasPermission(address[] user, uint256 action) external onlyApp() returns (bool){
-    //     uint256 len = user.length;
-    //     require(len <= MAX_ARRAY_LEN);
-
-    //     for (uint256 i = 0; i < len; i++){
-    //         if (_permission[user] & action == 0)
-    //             return false;
-    //     }
-    //     return true;
-    // }
-
-
 }
