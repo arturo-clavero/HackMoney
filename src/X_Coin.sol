@@ -3,22 +3,9 @@ pragma solidity ^0.8.13;
 
 import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol"; 
 
-struct Position {
-    mapping(address token => uint256 amount);
-    uint256 debt;
-}
+library Actions {
+    uint256 constant public MAX_ARRAY_LEN = 50;
 
-/**
- * @notice ERC20 token controlled by a central engine contract.
- *          One token deployed per new App Instance.
- * @dev Minting and burning are restricted to the engine, and approvals
- *      are disabled to limit how the token can be used.
- */
-contract Coin is ERC20 {
-
-    address private _protocol;
-    address private _app;
-    
     //groups
     uint256 constant public ONLY_APP = 0;
     uint256 constant public APP_AND_USER = 1;
@@ -28,29 +15,80 @@ contract Coin is ERC20 {
     uint256 constant public MINT = 1 << 0;
     uint256 constant public HOLD = 1 << 1;
     uint256 constant public TRANSFER = 1 << 1;
+
+    function getGroupActions(
+        bool canMint, 
+        bool canHold, 
+        bool canGetTransfer
+        ) internal pure returns (uint256 actions){
+        if (canMint) actions |= MINT;
+        if (canHold) actions |= HOLD;
+        if (canGetTransfer) actions |= TRANSFER;
+    }   
+}
+
+struct Position {
+    mapping(address token => uint256 amount) collateral;
+    uint256 debt;
+}
+
+
+struct Collateral {
+    address     tokenAddress;//0 -> ETH
+    address[]   oracleFeeds;
+    uint256     LTV;
+    uint256     liquidityThreshold;
+    uint256     debtCap;
+    uint256       mode;
+}
+
+/**
+ * @notice ERC20 token controlled by a central engine contract.
+ *          One token deployed per new App Instance.
+ * @dev Minting and burning are restricted to the engine, and approvals
+ *      are disabled to limit how the token can be used.
+ */
+contract Coin is ERC20 {
+    address private _protocol;
+    address private _app;
+
     uint256 private _userActions;
     uint256 private _appActions;
-    mapping(address user => uint256 actions) private permission;
+    mapping(address user => uint256 actions) private _permission;
 
-    mapping(address token => Collateral) private supportedCollateral;
-    mapping(address user => Position) private positions;
+    mapping(address token => Collateral) private _supportedCollateral;
+    mapping(address user => Position) private _positions;
 
+    event NeedToSetMorePermissions(uint256 actions, address[] users);
+    
     constructor (
         address protocol,
+        address owner,
         string memory name,
         string memory symbol,
         uint256 appActions,
         uint256 userActions,
-        address[] users
+        address[] memory users,
+        address[] memory supportedTokens
     ) ERC20(name, symbol) {
+
         _protocol = protocol;
-        _app = msg.sender;
+        _app = owner;
         _userActions = userActions;
         _appActions = appActions;
-        permission[msg.sender] |= appActions;
+        _permission[owner] |= appActions;
+        //collateral
+        uint256 len = supportedTokens.length;
+        require (len < Actions.MAX_ARRAY_LEN);
+        // Collateral[] memory cacheCol = msg.sender.cache;
+        for (uint256 i = 0; i < len; i ++){
+            // _supportedCollateral[supportedTokens[i]] = cacheCol[i];
+        }
+        //
         grantPermission(users, userActions);
-        if (users.length > MAX_ARRAY_LEN)
-            emit event NeedToSetMorePermissions(userActions, users);
+        if (users.length > Actions.MAX_ARRAY_LEN)
+            emit NeedToSetMorePermissions(userActions, users);
+
     }
     modifier onlyProtocol(){
         require(msg.sender == _protocol);
@@ -62,49 +100,37 @@ contract Coin is ERC20 {
         _;
     }
 
-//test constructor
-    function getGroupActions(
-        bool canMint, 
-        bool canHold, 
-        bool canGetTransfer
-        ) external view returns (uint256 actions){
-        if (canMint) actions |= MINT;
-        if (canHold) actions |= HOLD;
-        if (canGetTransfer) actions |= TRANSFER;
-    }   
-
-//main interactions... 
     function deposit(address token, uint256 value) external {
-        _needsPermission(msg.sender, MINT);
-        _isTokenSupported(token);
+        _needsPermission(msg.sender, Actions.MINT);
+        require(_supportedCollateral[token].liquidityThreshold > 0);
         //if token != address(0)
             //value == msg.value;
         // require(value > 0 || msg.value > 0);
         //transfer here
-        positions[msg.sender].collateral[token] += value;
+        _positions[msg.sender].collateral[token] += value;
     }
 
     function mint(address account, uint256 value) external {
-        _needsPermission(msg.sender, MINT);
-        _needsPermission(account, HOLD);
-        
-        Position storage pos = positions[msg.sender];
+        _needsPermission(msg.sender, Actions.MINT);
+        _needsPermission(account, Actions.HOLD);
+        //secure_mint
+        Position storage pos = _positions[account];
         _calculateMaxMint(pos, value);
         pos.debt += value;
         _mint(account, value);
 
-        require(_isPositionHealthy(msg.sender));
+        require(_isPositionHealthy(account));
     }
 
     function burn(address account, uint256 value) onlyProtocol() external {
         _burn(account, value);
-        positions[msg.sender].debt -= value;
-        require(_isPositionHealthy(msg.sender));
+        _positions[account].debt -= value;
+        require(_isPositionHealthy(account));
     }
 
      function transfer(address account, uint256 value) public override returns (bool) {
-        _needsPermission(account, TRANSFER);
-        super.transfer(account, value);
+        _needsPermission(account, Actions.TRANSFER);
+        return super.transfer(account, value);
     }
 
     function approve(address, uint256) public override returns (bool) {
@@ -112,32 +138,47 @@ contract Coin is ERC20 {
     }
 
 //Permissions
-    function updateUserList(address[] toAdd, address[] toRemove) external onlyApp(){}
-    {
-        grantPermission(toAdd, userActions);
-        revokePermission(toRemove, userActions);
+    function updateUserList(address[] calldata toAdd, address[] calldata toRemove) external onlyApp() {
+        grantPermission(toAdd, _userActions);
+        revokePermission(toRemove, _userActions);
     }
 
-    function _needsPermission(address user, uint256 action) internal {
-        require(permission[user] & action != 0);
-    }
-
-    function grantPermission(address[] user, uint256 action) internal {
-        uint256 len = user.length;
-        require(len <= MAX_ARRAY_LEN);
+    function grantPermission(address[] memory users, uint256 action) internal {
+        uint256 len = users.length;
+        if (len > Actions.MAX_ARRAY_LEN){
+            len = Actions.MAX_ARRAY_LEN;
+            emit NeedToSetMorePermissions(action, users);
+        }
 
         for (uint256 i = 0; i < len; i++){
-            permission[user] |= action;
+            _permission[users[i]] |= action;
         }
     }
 
-    function revokePermission(address[] user, uint256 action) internal {
-        uint256 len = user.length;
-        require(len <= MAX_ARRAY_LEN);
+    function revokePermission(address[] calldata users, uint256 action) internal {
+        uint256 len = users.length;
+        if (len > Actions.MAX_ARRAY_LEN){
+            len = Actions.MAX_ARRAY_LEN;
+            emit NeedToSetMorePermissions(action, users);
+        }
 
         for (uint256 i = 0; i < len; i++){
-            permission[user] &= ~action;
+            _permission[users[i]] &= ~action;
         }
+    }
+
+    function _needsPermission(address user, uint256 action) internal view {
+        require(_permission[user] & action != 0);
+    }
+
+//helpers :
+
+    function _isPositionHealthy(address user) internal returns (bool) {
+        return true;
+    }
+
+    function _calculateMaxMint(Position storage pos, uint256 value) internal {
+
     }
 
 //NO use cases?
@@ -146,7 +187,7 @@ contract Coin is ERC20 {
     //     require(len <= MAX_ARRAY_LEN);
 
     //     for (uint256 i = 0; i < len; i++){
-    //         if (permission[user] & action == 0)
+    //         if (_permission[user] & action == 0)
     //             return false;
     //     }
     //     return true;

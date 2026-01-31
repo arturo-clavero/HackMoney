@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Storage} from "./1_Storage.sol";
 
-struct AppConfig {
+struct AppUXConfig {
     bytes32 userListRoot;
     address app;
     //separate int
@@ -35,7 +35,7 @@ abstract contract AppManager is Storage {
     uint256 private latestId;
     mapping(uint256 AppId => MinStoredConfig) internal appData;
 
-    function newInstance(AppUXConfig config) external {
+    function newInstance(AppUXConfig calldata config) external {
         //new address
         //add address and other data to store in intsance
         //set app data + 1
@@ -45,5 +45,4 @@ abstract contract AppManager is Storage {
     }
 
     function updateUserList() external {}
-    function updateAdminList() external {}
 }
