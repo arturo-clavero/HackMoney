@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import {Storage, Collateral} from "../../src/1_Storage.sol";
+import {Storage, Collateral} from "../../src/Core/Storage.sol";
 
 
 contract TestPeg is Storage {

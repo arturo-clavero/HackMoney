@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 
 struct Collateral {
     address     tokenAddress;//0 -> ETH
+    uint256     id;
     address[]   oracleFeeds;
     uint256     LTV;
     uint256     liquidityThreshold;
@@ -54,12 +55,13 @@ abstract contract Storage {
     address private timelock;
 
     //collateral
+    uint256 private lastCollateralId = 1;
     mapping(address token => Collateral) internal collateralData;
-    address[] private collateralTokens;//?
+    // address[] private collateralTokens;//?
     uint256 constant public STABLE = 1 << 0;
     uint256 constant public VOLATILE = 1 << 1;
     uint256 constant public YIELD = 1 << 2;
-    uint256 constant private PAUSED = 1 << 3;
+    uint256 constant private ACTIVE = 1 << 3;
     uint256 private immutable i_allowedCollateralModes;
 
     constructor(address _owner, address _timelock, uint256 pegType) {
@@ -108,7 +110,21 @@ abstract contract Storage {
 
     function updateCollateral(Collateral calldata updatedCol) external onlyTimeLock(){
         require(i_allowedCollateralModes & updatedCol.mode != 0);
-        collateralData[updatedCol.tokenAddress] = updatedCol;
+        Collateral storage _c = collateralData[updatedCol.tokenAddress];
+        uint256 id = _c.id;
+        if (id == 0){
+            id = lastCollateralId;
+            lastCollateralId = id + 1;
+        }
+        _c = Collateral(
+            updatedCol.tokenAddress,
+            id,
+            updatedCol.oracleFeeds,
+            updatedCol.LTC,
+            updateCol.liquidityThreshold,
+            updatedCol.debtCap,
+            updatedCol.mode
+        )
     }
 
     function removeCollateral(address tokenAddress) external onlyTimeLock(){
@@ -116,11 +132,15 @@ abstract contract Storage {
     }
 
     function pauseCollateral(address tokenAddress) external onlyTimeLock(){
-        collateralData[tokenAddress].mode |= PAUSED;
-
+        collateralData[tokenAddress].mode &= ~ACTIVE;
     }
+
     function unpauseCollateral(address tokenAddress) external onlyTimeLock(){
-        collateralData[tokenAddress].mode &= ~PAUSED;
+        collateralData[tokenAddress].mode |= ACTIVE;
+    }
+
+    function _isCollateralAllowed(address token) internal view returns (bool){
+        return collateralData[tokenAddress].mode & ACTIVE != 0;
     }
 
 }

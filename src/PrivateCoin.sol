@@ -25,16 +25,15 @@ contract PrivateCoin is ERC20 {
     event NeedToSetMorePermissions(address[] toAdd, address[] toRevoke);
 
     constructor (
-        address engine,
-        address app,
+        string memory name,
+        string memory symbol,
         uint256 appActions,
         uint256 userActions,
-        address[] memory users,
-        string memory name,
-        string memory symbol
+        address[] memory users,   
+        address app
     ) ERC20(name, symbol) {
         Actions.allowed(userActions, appActions);
-        _engine = engine;
+        _engine = msg.sender;
         _app = app;
         _userActions = userActions;
         _appActions = appActions;
@@ -45,11 +44,6 @@ contract PrivateCoin is ERC20 {
 
     modifier onlyEngine(){
         require(msg.sender == _engine, "Invalid access");
-        _;
-    }
-
-    modifier onlyApp(){
-        require(msg.sender == _app, "Invalid access");
         _;
     }
 
@@ -78,7 +72,7 @@ contract PrivateCoin is ERC20 {
     }
 
     //Permissions
-    function updateUserList(address[] memory toAdd, address[] memory toRemove) external onlyApp() {
+    function updateUserList(address[] memory toAdd, address[] memory toRemove) external onlyEngine() {
         bool grantsNotFinished = _grantPermission(toAdd, _userActions);
         bool revokesNotFinished =_revokePermission(toRemove, _userActions);
         if (!grantsNotFinished && !revokesNotFinished)

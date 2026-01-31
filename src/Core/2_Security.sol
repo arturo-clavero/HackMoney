@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Storage} from "./1_Storage.sol";
+import {Storage} from "./Storage.sol";
 
 /**
  * @notice Security specific functions and data 

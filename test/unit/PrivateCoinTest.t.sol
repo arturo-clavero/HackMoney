@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/X_PrivateCoin.sol";
+import "../../src/PrivateCoin.sol";
 import {BootstrapActions} from "./ActionsLib.t.sol";
 
 contract PrivateCoinTest is Test {
@@ -42,14 +42,22 @@ contract PrivateCoinTest is Test {
         return true;
     }
 
-    function setupCoin(uint256 appActions, uint256 userActions) internal returns (PrivateCoin) {
-        return new PrivateCoin(engine, app, appActions, userActions, new address[](0),"TestCoin", "TC");
+    function setupCoin(uint256 appActions, uint256 userActions) internal returns (PrivateCoin pc) {
+        vm.prank(engine);
+        pc = new PrivateCoin(
+            "TestCoin", 
+            "TC", 
+            appActions, 
+            userActions, 
+            new address[](0),
+            app
+        );
     }
 
     function grantUser(PrivateCoin c, address user) internal {
         address[] memory users = new address[](1);
         users[0] = user;
-        vm.prank(app);
+        vm.prank(engine);
         c.updateUserList(users, new address[](0));
     }
 
