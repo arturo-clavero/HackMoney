@@ -6,62 +6,58 @@ import "../../src/X_Coin.sol";
 
 contract CoinTest is Test {
     Coin coin;
-    address protocol = vm.addr(1);
-    address app = vm.addr(2);
+    address engine = address(0x123);
     address user1 = address(0x456);
     address user2 = address(0x789);
-    address[] users = [user1, user2, vm.addr(2), vm.addr(3), vm.addr(4)];
-    address[] supportedTokens = [vm.addr(4), vm.addr(5), vm.addr(6)];
-    // address[] users;
-    // address[] supportedTokens;
 
     function setUp() public {
-        // coin = new Coin(engine, "TestCoin", "T");
-        
-        uint256 appActions = 1 << 0;
-        uint256 userActions = 1 << 1;
-        // address[] memory users = new address[](3);
+        coin = new Coin(engine, "TestCoin", "T");
 
-        coin = new Coin(
-            protocol,
-            app,
-            "name",
-            "n",
-            appActions,
-            userActions,
-            users,
-            supportedTokens
-        );
-
-        vm.label(protocol, "Protocol");
+        vm.label(engine, "Engine");
         vm.label(user1, "User1");
         vm.label(user2, "User2");
 
-        vm.startPrank(app);
+        vm.startPrank(engine);
         coin.mint(user1, 1000);
         coin.mint(user2, 1000);
+        coin.mint(engine, 1000);
         vm.stopPrank();
     }
 
     function testConstructor() public view {
-        assertEq(coin.name(), "name");
-        assertEq(coin.symbol(), "n");
+        assertEq(coin.name(), "TestCoin");
+        assertEq(coin.symbol(), "T");
     }
 
-    function testBurnByProtocol() public {
+    function testMintByEngine() public {
         uint256 prevBalance = coin.balanceOf(user1);
 
-        vm.prank(app);
+        vm.prank(engine);
         coin.mint(user1, 1000);
 
-        vm.prank(protocol);
+        assertEq(coin.balanceOf(user1), prevBalance + 1000);
+    }
+
+    function testMintByNonEngineFails() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        coin.mint(user1, 1000);
+    }
+
+    function testBurnByEngine() public {
+        uint256 prevBalance = coin.balanceOf(user1);
+
+        vm.prank(engine);
+        coin.mint(user1, 1000);
+
+        vm.prank(engine);
         coin.burn(user1, 400);
 
         assertEq(coin.balanceOf(user1), prevBalance + 600);
     }
 
-    function testBurnByNonProtocolFails() public {
-        vm.prank(app);
+    function testBurnByNonEngineFails() public {
+        vm.prank(engine);
         coin.mint(user1, 1000);
 
         vm.prank(user1);
@@ -73,7 +69,7 @@ contract CoinTest is Test {
         uint256 prevBalance1 = coin.balanceOf(user1);
         uint256 prevBalance2 = coin.balanceOf(user2);
         
-        vm.startPrank(protocol);
+        vm.startPrank(engine);
         coin.mint(user1, 1000);
         coin.transferFrom(user1, user2, 500);
         vm.stopPrank();
@@ -92,4 +88,23 @@ contract CoinTest is Test {
         coin.transferFrom(user1, user2, 500);
     }
 
+    function testApproveAlwaysFails() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        coin.approve(user2, 100);
+
+        vm.prank(engine);
+        vm.expectRevert();
+        coin.approve(user1, 100);
+    }
+
+    function testTransferAlwaysFails() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        coin.transfer(user2, 100);
+
+        vm.prank(engine);
+        vm.expectRevert();
+        coin.transfer(user1, 100);
+    }
 }
