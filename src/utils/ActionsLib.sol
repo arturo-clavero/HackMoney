@@ -26,13 +26,16 @@ library Actions {
 
     function allowed(uint256 userActions, uint256 appActions) internal pure {
         transferMustHold(userActions);
-        transferMustHold(appActions);
+        bool appTransfers = transferMustHold(appActions);
+        if (appTransfers)
+            require(userActions & HOLD != 0, "TRANSFERS require USERS");
         require(userActions & MINT != 0 || appActions & MINT != 0, "At least one MINTER");
         require(userActions & HOLD != 0 || appActions & HOLD != 0, "At least one HOLDER");
     }
 
-    function transferMustHold(uint256 actions) internal pure {
-        if (actions & TRANSFER != 0)
+    function transferMustHold(uint256 actions) internal pure returns (bool canTransfer){
+        canTransfer = actions & TRANSFER != 0;
+        if (canTransfer)
             require(actions & HOLD != 0, "TRANSFER roles must also be HOLDER");
     }
 }

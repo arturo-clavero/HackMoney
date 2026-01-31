@@ -5,12 +5,16 @@ import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 import {Actions} from "./utils/ActionsLib.sol";
 
 /**
- * @notice ERC20 token controlled by a central engine contract.
- *          One token deployed per new App Instance.
- * @dev Minting and burning are restricted to the engine, and approvals
- *      are disabled to limit how the token can be used.
+ * @notice ERC20-Private token for each App.
+ *         Token minting and ownership restricted to a set of users. 
+ *         ERC-20 functions only accessed by the "engine" protocol.
+ *
+ * @dev ERC20 modifications : Minting and burning are restricted to the engine, and direct transfers
+ *      and approvals are disabled. Transfers can only happen via transferFrom - no allowance required, only callable by the "engine"
+ *      Permissions : MINT, HOLD, TRANSFER permissions for the owner and a list of users.
+ *      User lists can be updated by the App.
  */
-contract Coin is ERC20 {
+contract PrivateCoin is ERC20 {
 
     address private _engine;
     address private _app;

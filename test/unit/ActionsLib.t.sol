@@ -78,4 +78,46 @@ contract ActionsTest is Test {
         uint256 actions = Actions.TRANSFER | Actions.HOLD;
         lib.transferMustHold(actions);
     }
+
+    function testAllowed_RevertsIfOnlyAppHoldsAndTransfers() public {
+        uint256 appActions =
+            Actions.MINT |
+            Actions.HOLD |
+            Actions.TRANSFER;
+
+        uint256 userActions =
+            Actions.MINT;
+
+        vm.expectRevert();
+        lib.allowed(userActions, appActions);
+    }
+
+    function testAllowed_Passes_UserToApp() public view {
+        uint256 userActions =
+            Actions.MINT |
+            Actions.HOLD;
+
+        uint256 appActions =
+            Actions.MINT |
+            Actions.HOLD |
+            Actions.TRANSFER;
+
+        lib.allowed(userActions, appActions);
+    }
+
+    function testAllowed_Passes_UserToUser() public view {
+        uint256 userActions =
+            Actions.MINT |
+            Actions.HOLD |
+            Actions.TRANSFER;
+
+        uint256 appActions =
+            Actions.MINT;
+
+        lib.allowed(userActions, appActions);
+    }
+
+
+
+    
 }
