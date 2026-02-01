@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Engine} from "./3_Engine.sol";
-import {Storage} from "./Storage.sol";
-
+import {Engine} from "./shared/3_Engine.sol";
+import {CollateralManager} from "./shared/CollateralManager.sol";
+import {AccessManager} from "./shared/AccessManager.sol";
 
 
 /**
@@ -18,5 +18,8 @@ import {Storage} from "./Storage.sol";
  */
 contract HardPeg is Engine {
     
-    constructor(address owner, address timelock) Storage(owner, timelock, 0){}
+    constructor(address owner, address timelock)
+    AccessManager(owner, timelock)
+    CollateralManager(0)
+    {}
 }

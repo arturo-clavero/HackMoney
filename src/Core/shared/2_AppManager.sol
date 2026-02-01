@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Storage} from "./Storage.sol";
-import {PrivateCoin} from "./../PrivateCoin.sol";
-import {IPrivateCoin} from "./../interfaces/IPrivateCoin.sol";
+import {CollateralManager} from "./CollateralManager.sol";
+import {PrivateCoin} from "./../../PrivateCoin.sol";
+import {IPrivateCoin} from "./../../interfaces/IPrivateCoin.sol";
 
 struct AppUXConfig {
     string name;
@@ -25,7 +25,7 @@ struct AppData {
  * @notice Management for each app instance
  * @dev stores app specific configurations and manages adding new instances
  */
-abstract contract AppManager is Storage {
+abstract contract AppManager is CollateralManager {
     uint256 private constant MAX_COLLATERAL_TYPES = 5;
     uint256 private latestId;
     mapping(uint256 id => AppData) internal appData;
@@ -47,7 +47,7 @@ abstract contract AppManager is Storage {
         uint256 len = config.tokens.length;
         require(len < MAX_COLLATERAL_TYPES);
         for (uint256 i = 0; i < len; i ++){
-            uint256 colID = collateralData[config.tokens[i]].id;
+            uint256 colID = collateralConfig[config.tokens[i]].id;
             if (colID == 0) continue;
             tokensAllowed |= colID;
         }
@@ -68,29 +68,29 @@ abstract contract AppManager is Storage {
         IPrivateCoin(thisApp.coin).updateUserList(toAdd, toRevoke);
     }
 
-    function addCollateral(uint256 appID, address token){
+    function addCollateral(uint256 appID, address token) external {
         //ONLY APP
         AppData storage thisApp = appData[appID];
         require(msg.sender == thisApp.owner);
 
-        uint256 colID = collateralData[token].id;
+        uint256 colID = collateralConfig[token].id;
         require(colID != 0, "Collateral not yet supported by our Protocol");
         thisApp.tokensAllowed |= colID;
     }
 
-    function removeCollateral(uint256 appID, address token){
+    function removeCollateral(uint256 appID, address token) external {
         //ONLY APP
         AppData storage thisApp = appData[appID];
         require(msg.sender == thisApp.owner);
 
-        uint256 colID = collateralData[token].id;
+        uint256 colID = collateralConfig[token].id;
         require(colID != 0, "Collateral not yet supported by our Protocol");
         thisApp.tokensAllowed &= ~colID;
         require(thisApp.tokensAllowed != 0, "At least One Collateral supported");
     }
 
     function _isAppCollateralAllowed(uint256 appID, address token) internal view returns (bool) {
-        uint256 colID = collateralData[token].id;
+        uint256 colID = collateralConfig[token].id;
         return (appData[appID].tokensAllowed & colID != 0);
     }
 
@@ -98,11 +98,11 @@ abstract contract AppManager is Storage {
         IPrivateCoin(appData[appID].coin).mint(msg.sender, to, value);
     }
 
-    function _burnAppToken(uint256 appID, uint256 value) internal pure{
+    function _burnAppToken(uint256 appID, uint256 value) internal {
         IPrivateCoin(appData[appID].coin).burn(msg.sender, value);
     }
 
-    function _transferAppToken(uint256 appID, address to, uint256 value) internal pure{
+    function _transferAppToken(uint256 appID, address to, uint256 value) internal {
         IPrivateCoin(appData[appID].coin).transferFrom(msg.sender, to, value);
     }
 }

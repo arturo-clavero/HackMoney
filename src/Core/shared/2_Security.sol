@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Storage} from "./Storage.sol";
+import {AccessManager} from "./AccessManager.sol";
 
 /**
  * @notice Security specific functions and data 
  * @dev for minting and other security related operations
  */
-abstract contract Security is Storage {
+abstract contract Security is AccessManager {
 
 }

@@ -63,10 +63,11 @@ contract PrivateCoin is ERC20 {
         return true;
     }
 
+//do not restrict to pure ->its an override
     function approve(address, uint256) public override returns (bool) {
         revert("Approvals disabled");
     }
-
+//do not restrict to pure ->its an override
     function transfer(address, uint256) public override returns (bool) {
         revert("Transfers disabled");
     }

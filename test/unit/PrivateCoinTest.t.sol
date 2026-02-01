@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../../src/PrivateCoin.sol";
-import {BootstrapActions} from "./ActionsLib.t.sol";
+import {BootstrapActions} from "./ActionsLibTest.t.sol";
 
 contract PrivateCoinTest is Test {
 
