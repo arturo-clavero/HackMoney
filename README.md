@@ -1,3 +1,17 @@
+## Contracts
+* /Core/shared/AccessManager     |--> DONE
+* /Core/shared/CollateralManager |--> DONE
+* /Core/shared/AppManager        |--> IN PROGRESS
+* /Core/shared/Security|--> IN PROGRESS
+>* /Core/shared/Oracle |--> X
+* /Core/shared/Engine |--> IN PROGRESS
+>* /Core/HardPeg | --> PENDING (on engine)
+>* /Core/MediumPeg | --> PENDING (on engine)
+>* /Core/SoftPeg | --> PENDING (on engine)
+>* /mocks/MockOracle |--> X
+* /PrivateCoin | --> DONE
+> * /Timelock | --> X
+
 ## Architecture
 
 ### Creating a "stablecoin instance"
