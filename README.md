@@ -51,22 +51,6 @@ Here we describe the smart contract architecture and inheritance for the main Pr
 1. Shared Architecture:
 >Set of abstract contracts that define shared-logic for every peg design. These contracts manage everything that isn't directly related to the peg-design and risk management.
 
-```Mermaid
-flowchart TD
-
-St[Storage]
-E[Engine]
-
-St-->A[App-Manager]
-St-->O[Oracle-Manager]
-St-->S[Security]
-
-A-->E
-O-->E
-S-->E
-
-```
-or split storage up : 
 
 ```Mermaid
 flowchart TD
@@ -91,70 +75,6 @@ S-->E
 
 ```
 
-or diiferetn visualization: //add pegs
-
-```Mermaid
-flowchart TD
-
-R[Access]
-C[Collateral]
-
-O[Oracle]
-S[Security]
-A[App]
-
-E[Engine]
-
-R-->C
-C-->O
-C-->A
-R-->S
-
-O-->E
-A-->E
-S-->E
-
-H[Hard-Peg]
-M[Medium-Peg]
-Sp[Soft-Peg]
-
-E-->H
-E-->M
-E-->Sp
-
-```
-or just use engine as interface: 
-```Mermaid
-flowchart TD
-
-R[Access]
-C[Collateral]
-
-O[Oracle]
-S[Security]
-A[App]
-
-E{ shared 
-logic }
-
-R-->C
-C-->O
-C-->A
-R-->S
-
-O-->E
-A-->E
-S-->E
-
-H[Hard-Peg]
-M[Medium-Peg]
-Sp[Soft-Peg]
-
-E-->H
-E-->M
-E-->Sp
-
-```
 
 2. Peg Specific Architecture:
 >Engine risk functions may be overriden in "Peg" contracts. Additionally each peg module stores "positions" differently. The separation here allows us to customize risk design, position architecture and position management.

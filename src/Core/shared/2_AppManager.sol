@@ -5,7 +5,7 @@ import {CollateralManager} from "./CollateralManager.sol";
 import {PrivateCoin} from "./../../PrivateCoin.sol";
 import {IPrivateCoin} from "./../../interfaces/IPrivateCoin.sol";
 
-struct AppUXConfig {
+struct AppInput {
     string name;
     string symbol;
     uint256 appActions;
@@ -14,7 +14,7 @@ struct AppUXConfig {
     address[] tokens;
 }
 
-struct AppData {
+struct AppConfig {
     address owner;
     address coin;
     uint256 tokensAllowed;
@@ -28,9 +28,9 @@ struct AppData {
 abstract contract AppManager is CollateralManager {
     uint256 private constant MAX_COLLATERAL_TYPES = 5;
     uint256 private latestId;
-    mapping(uint256 id => AppData) internal appData;
+    mapping(uint256 id => AppConfig) internal AppConfig;
     
-    function newInstance(AppUXConfig calldata config) external {
+    function newInstance(AppInput calldata config) external {
         uint256 id = latestId;
         latestId = id + 1;
 
@@ -53,7 +53,7 @@ abstract contract AppManager is CollateralManager {
         }
         require (tokensAllowed != 0, "At least One Collateral supported");
         
-        appData[id] = AppData(
+        appConfig[id] = AppConfig(
             msg.sender,
             coin,
             tokensAllowed
@@ -62,7 +62,7 @@ abstract contract AppManager is CollateralManager {
 
     function updateUserList(uint256 id, address[] memory toAdd, address[] memory toRevoke) public {
         //ONLY APP
-        AppData storage thisApp = appData[id];
+        AppConfig storage thisApp = appConfig[id];
         require(msg.sender == thisApp.owner);
 
         IPrivateCoin(thisApp.coin).updateUserList(toAdd, toRevoke);
@@ -70,7 +70,7 @@ abstract contract AppManager is CollateralManager {
 
     function addCollateral(uint256 appID, address token) external {
         //ONLY APP
-        AppData storage thisApp = appData[appID];
+        AppConfig storage thisApp = appConfig[appID];
         require(msg.sender == thisApp.owner);
 
         uint256 colID = collateralConfig[token].id;
@@ -80,7 +80,7 @@ abstract contract AppManager is CollateralManager {
 
     function removeCollateral(uint256 appID, address token) external {
         //ONLY APP
-        AppData storage thisApp = appData[appID];
+        AppConfig storage thisApp = appConfig[appID];
         require(msg.sender == thisApp.owner);
 
         uint256 colID = collateralConfig[token].id;
@@ -91,18 +91,18 @@ abstract contract AppManager is CollateralManager {
 
     function _isAppCollateralAllowed(uint256 appID, address token) internal view returns (bool) {
         uint256 colID = collateralConfig[token].id;
-        return (appData[appID].tokensAllowed & colID != 0);
+        return (appConfig[appID].tokensAllowed & colID != 0);
     }
 
     function _mintAppToken(uint256 appID, address to, uint256 value) internal{
-        IPrivateCoin(appData[appID].coin).mint(msg.sender, to, value);
+        IPrivateCoin(appConfig[appID].coin).mint(msg.sender, to, value);
     }
 
     function _burnAppToken(uint256 appID, uint256 value) internal {
-        IPrivateCoin(appData[appID].coin).burn(msg.sender, value);
+        IPrivateCoin(appConfig[appID].coin).burn(msg.sender, value);
     }
 
     function _transferAppToken(uint256 appID, address to, uint256 value) internal {
-        IPrivateCoin(appData[appID].coin).transferFrom(msg.sender, to, value);
+        IPrivateCoin(appConfig[appID].coin).transferFrom(msg.sender, to, value);
     }
 }
