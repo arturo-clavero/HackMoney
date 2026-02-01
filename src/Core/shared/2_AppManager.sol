@@ -28,7 +28,7 @@ struct AppConfig {
 abstract contract AppManager is CollateralManager {
     uint256 private constant MAX_COLLATERAL_TYPES = 5;
     uint256 private latestId;
-    mapping(uint256 id => AppConfig) internal AppConfig;
+    mapping(uint256 id => AppConfig) internal appConfig;
     
     function newInstance(AppInput calldata config) external {
         uint256 id = latestId;
