@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-interface IPrivateCoin {
+import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
+
+interface IPrivateCoin is IERC20, IERC20Permit {
 
     event NeedToSetMorePermissions(address[] toAdd, address[] toRevoke);
 

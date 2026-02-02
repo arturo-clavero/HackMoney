@@ -1,0 +1,298 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import "forge-std/Test.sol";
+import "../../src/Core/shared/AppManager.sol";
+import "../../src/Core/shared/AccessManager.sol";
+import "./helpers/CoreLib.t.sol";
+
+contract AppManagerHarness is AppManager {
+    address public owner;
+    address public timelock;
+
+    constructor(address timelock_) CollateralManager(0) AccessManager(msg.sender, timelock_) {
+        owner = msg.sender;
+        timelock = timelock_;
+    }
+
+    function exposed_isAllowed(uint256 id, address token) external view returns (bool) {
+        return _isAppCollateralAllowed(id, token);
+    }
+
+    function exposed_mint(uint256 id, address to, uint256 value) external {
+        _mintAppToken(id, to, value);
+    }
+
+    function exposed_burn(uint256 id, uint256 value) external {
+        _burnAppToken(id, value);
+    }
+
+    function exposed_transfer(uint256 id, address from, address to, uint256 value) external {
+        _transferFromAppTokenPermit(id, from, to, value);
+    }
+    
+    function exposed_getStablecoinID(address token) external view returns (uint256) {
+        return _getStablecoinID(token);
+    }
+
+    function exposed_getAppConfig(uint256 id) external returns (AppConfig memory){
+        return _getAppConfig(id);
+    }
+
+}
+
+contract AppManagerTest is Test {
+    AppManagerHarness manager;
+
+    address timelock = vm.addr(0xDEAD);
+    // Users
+    address owner = address(0xA);
+    address user1 = address(0xB);
+    address user2 = address(0xC);
+    address user3;
+    uint256 user3PK;
+    address alien = address(0xD);
+
+    // Collateral
+    address col1 = address(0x101);
+    address col2 = address(0x102);
+    address col3 = address(0x103);
+    address notSupportedCol = address(0x104);
+
+    function _setupManager() internal {
+        manager = new AppManagerHarness(timelock);
+        (user3, user3PK) = makeAddrAndKey("alice");
+
+        vm.startPrank(timelock);
+        manager.updateCollateral(Core._collateralInput(col1));
+        manager.updateCollateral(Core._collateralInput(col2));
+        manager.updateCollateral(Core._collateralInput(col3));
+        vm.stopPrank();
+    }
+
+    function _defaultUsers() internal view returns (address[] memory users) {
+        users = new address[](3);
+        users[0] = user1;
+        users[1] = user2;
+        users[2] = user3;
+    }
+
+    function _defaultTokens() internal view returns (address[] memory tokens) {
+        tokens = new address[](2);
+        tokens[0] = col1;
+        tokens[1] = col2;
+    }
+
+    function _defaultInput() internal view returns (AppInput memory input) {
+        input = AppInput({
+            name: "TestCoin",
+            symbol: "TC",
+            appActions: Core.defaultAppAction,
+            userActions: Core.defaultUserAction,
+            users: _defaultUsers(),
+            tokens: _defaultTokens()
+        });
+    }
+
+    function _singleUser(address user) internal pure returns (address[] memory users) {
+        users = new address[](1);
+        users[0] = user;
+    }
+
+    function _emptyAddr() internal pure returns (address[] memory arr) {
+        arr = new address[](0);
+    }
+
+    function setUp() public {
+        _setupManager();
+    }
+
+    // newInstance
+    function testNewInstance_Success() public {
+        AppInput memory input = _defaultInput();
+
+        vm.prank(owner);
+        uint256 id = manager.newInstance(input);
+
+        AppConfig memory cfg = manager.exposed_getAppConfig(id);
+        assertTrue(cfg.coin != address(0));
+        assertEq(cfg.tokensAllowed, (1 << 1) | (1 << 2));
+        assertEq(cfg.owner, owner);
+    }
+
+    function testNewInstance_CorrectId() public {
+        AppInput memory input = _defaultInput();
+        assertEq(manager.newInstance(input), 1);
+        assertEq(manager.newInstance(input), 2);
+        assertEq(manager.newInstance(input), 3);
+        assertEq(manager.newInstance(input), 4);
+    }
+
+    function testNewInstance_Revert_NoCollateral() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](1);
+        input.tokens[0] = address(0xdead); // id = 0
+
+        vm.prank(owner);
+        vm.expectRevert("At least One Collateral supported");
+        manager.newInstance(input);
+    }
+
+    function testNewInstance_Revert_TooManyCollateral() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](1); // more than MAX_COLLATERAL_TYPES
+
+        vm.prank(owner);
+        vm.expectRevert();
+        manager.newInstance(input);
+    }
+
+        function testAddAllowedCollateral() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](1); 
+        input.tokens[0] = col1;
+
+        vm.prank(owner);
+        manager.newInstance(input);
+
+        assertTrue(manager.exposed_isAllowed(1, col1));
+    }
+
+    function testAddNotAllowedCollateralSkip() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](3); 
+        input.tokens[0] = col1;
+        input.tokens[1] = notSupportedCol;
+        input.tokens[2] = col2;
+
+        vm.prank(owner);
+        manager.newInstance(input);
+
+        assertFalse(manager.exposed_isAllowed(1, notSupportedCol));
+        assertTrue(manager.exposed_isAllowed(1, col1));
+        assertTrue(manager.exposed_isAllowed(1, col2));
+    }
+
+    function testAddNotAllowedCollateralRevert() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](1); 
+        input.tokens[0] = notSupportedCol;
+
+        vm.prank(owner);
+
+        vm.expectRevert();
+        manager.newInstance(input);
+    }
+    
+
+    // updateUserList
+    function testUpdateUserList_OwnerOnly() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.updateUserList(1, _singleUser(user2), _emptyAddr());
+    }
+
+    function testUpdateUserList_Revert_NotOwner() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(user1);
+        vm.expectRevert();
+        manager.updateUserList(1, _singleUser(user2), _emptyAddr());
+    }
+
+    // addCollateral
+    function testAddCollateral_Success() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.addCollateral(1, col3);
+        assertTrue(manager.exposed_isAllowed(1, col3));
+    }
+
+    function testAddCollateral_Revert_NotOwner() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(user1);
+        vm.expectRevert();
+        manager.addCollateral(1, col3);
+    }
+
+    function testAddCollateral_Revert_Unsupported() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        vm.expectRevert("Collateral not supported by our Protocol");
+        manager.addCollateral(1, address(0xdead));
+    }
+
+    // removeCollateral
+    function testRemoveCollateral_Success() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.removeCollateral(1, col2);
+        assertFalse(manager.exposed_isAllowed(1, col2));
+    }
+
+    function testRemoveCollateral_Revert_LastCollateral() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](1); 
+        input.tokens[0] = col1;
+
+        vm.prank(owner);
+        manager.newInstance(input);
+
+        vm.prank(owner);
+        vm.expectRevert("At least One Collateral supported");
+        manager.removeCollateral(1, col1);
+    }
+
+    // _getStablecoinID
+    function testGetStablecoinID_Success() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        address coin = manager.exposed_getAppConfig(1).coin;
+        assertEq(manager.exposed_getStablecoinID(coin), 1);
+    }
+
+    function testGetStablecoinID_Revert_Invalid() public {
+        vm.expectRevert("Invalid stablecoin address");
+        manager.exposed_getStablecoinID(address(0xdead));
+    }
+
+    // mint / transfer / burn
+    function testMintBurnTransfer_Delegation() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        address coin = manager.exposed_getAppConfig(1).coin;
+
+        vm.startPrank(owner);
+        manager.exposed_mint(1, user3, 10);
+        assertEq(IPrivateCoin(coin).balanceOf(user3), 10);
+        vm.stopPrank();
+
+        // transfer from requires permit
+        uint256 deadline = block.timestamp + 1 days;
+        bytes32 digest = Core.signPermit(coin, user3, user3PK, address(manager), 5, deadline);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(user3PK, digest);
+        IPrivateCoin(coin).permit(user3, address(manager), 5, deadline, v, r, s);
+
+        manager.exposed_transfer(1, user3, user2, 5);
+        assertEq(IPrivateCoin(coin).balanceOf(user3), 5);
+        assertEq(IPrivateCoin(coin).balanceOf(user2), 5);
+
+        vm.prank(user2);
+        manager.exposed_burn(1, 5);
+        assertEq(IPrivateCoin(coin).balanceOf(user2), 0);
+        vm.stopPrank();
+    }
+}

@@ -42,6 +42,7 @@ abstract contract CollateralManager is AccessManager {
     uint256 private immutable i_allowedCollateralModes;
     uint256 private lastCollateralId = 1;
     mapping(address token => CollateralConfig) internal collateralConfig;
+    address[] internal globalCollateralSupport;
 
     constructor(uint256 pegType) {
         if (pegType == 0) {
@@ -65,13 +66,15 @@ abstract contract CollateralManager is AccessManager {
         if (c.id == 0){
             c.id = lastCollateralId++;
             c.tokenAddress = updatedCol.tokenAddress;
+            globalCollateralSupport.push(updatedCol.tokenAddress);
         }
         c.mode = updatedCol.mode | MODE_ACTIVE;
         c.oracleFeeds = updatedCol.oracleFeeds;
         c.LTV = updatedCol.LTV;
         c.liquidityThreshold = updatedCol.liquidityThreshold;
         c.debtCap = updatedCol.debtCap;
-    }
+    }    
+        
 
     function removeCollateral(address tokenAddress) external onlyTimeLock(){
         delete collateralConfig[tokenAddress];

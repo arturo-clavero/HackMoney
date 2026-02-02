@@ -1,13 +1,13 @@
 ## Contracts
 > * /Core/shared/AccessManager     |--> DONE
 > * /Core/shared/CollateralManager |--> DONE
-> * /Core/shared/AppManager        |--> IN PROGRESS
+> * /Core/shared/AppManager        |--> DONE
 > * /Core/shared/Security|--> IN PROGRESS
 * /Core/shared/Oracle |--> X
-> * /Core/shared/Engine |--> IN PROGRESS
-* /Core/HardPeg | --> PENDING (on engine)
-* /Core/MediumPeg | --> PENDING (on engine)
-* /Core/SoftPeg | --> PENDING (on engine)
+> * /Core/shared/Engine |--> [removed]
+> * /Core/HardPeg | --> IN PROGRESS
+* /Core/MediumPeg | --> X
+* /Core/SoftPeg | --> X
 * /mocks/MockOracle |--> X
 > * /PrivateCoin | --> DONE
  * /Timelock | --> X

@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../../src/PrivateCoin.sol";
 import {BootstrapActions} from "./ActionsLibTest.t.sol";
+import "./helpers/CoreLib.t.sol";
 
 contract PrivateCoinTest is Test {
 
@@ -62,36 +63,6 @@ contract PrivateCoinTest is Test {
         users[0] = user;
         vm.prank(engine);
         c.updateUserList(users, new address[](0));
-    }
-    
-    function signPermit(
-        PrivateCoin c,
-        address owner,
-        uint256 ownerPk,
-        address allowed,
-        uint256 value,
-        uint256 deadline
-    ) internal view returns (uint8 v, bytes32 r, bytes32 s) {
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                c.DOMAIN_SEPARATOR(),
-                keccak256(
-                    abi.encode(
-                        keccak256(
-                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
-                        ),
-                        owner,
-                        allowed,
-                        value,
-                        c.nonces(owner),
-                        deadline
-                    )
-                )
-            )
-        );
-
-        return vm.sign(ownerPk, digest);
     }
 
 
@@ -202,9 +173,8 @@ contract PrivateCoinTest is Test {
                 (PrivateCoin c, address minter) = _setUpTransfer(userActions, appActions);
                 if (minter == address(0)) continue;
 
-
-                (uint8 v, bytes32 r, bytes32 s) = signPermit(c, user1, user1Pk, spender, 1, deadline);
-
+                bytes32 digest = Core.signPermit(address(c), user1, user1Pk, spender, 1, deadline);
+                (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1Pk, digest);
                 c.permit(user1, spender, 1, deadline, v, r, s);
 
                 bool receiverCanReceive = (userActions & Actions.TRANSFER_DEST != 0);
