@@ -12,7 +12,7 @@ library Actions {
     //actions
     uint256 constant public MINT = 1 << 0;
     uint256 constant public HOLD = 1 << 1;
-    uint256 constant public TRANSFER = 1 << 2;
+    uint256 constant public TRANSFER_DEST = 1 << 2;
 
     function getGroupActions(
         bool canMint, 
@@ -21,7 +21,7 @@ library Actions {
         ) internal pure returns (uint256 actions){
         if (canMint) actions |= MINT;
         if (canHold) actions |= HOLD;
-        if (canGetTransfer) actions |= TRANSFER;
+        if (canGetTransfer) actions |= TRANSFER_DEST;
     }
 
     function allowed(uint256 userActions, uint256 appActions) internal pure {
@@ -34,8 +34,8 @@ library Actions {
     }
 
     function transferMustHold(uint256 actions) internal pure returns (bool canTransfer){
-        canTransfer = actions & TRANSFER != 0;
+        canTransfer = actions & TRANSFER_DEST != 0;
         if (canTransfer)
-            require(actions & HOLD != 0, "TRANSFER roles must also be HOLDER");
+            require(actions & HOLD != 0, "TRANSFER_DEST roles must also be HOLDER");
     }
 }

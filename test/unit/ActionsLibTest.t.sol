@@ -36,7 +36,7 @@ contract ActionsTest is Test {
 
         assertTrue(actions & Actions.MINT != 0);
         assertTrue(actions & Actions.HOLD != 0);
-        assertTrue(actions & Actions.TRANSFER != 0);
+        assertTrue(actions & Actions.TRANSFER_DEST != 0);
     }
 
     function testGetGroupActions_NoneTrue() public view {
@@ -68,14 +68,14 @@ contract ActionsTest is Test {
     }
 
     function testTransferMustHold_RevertsIfTransferWithoutHold() public {
-        uint256 actions = Actions.TRANSFER;
+        uint256 actions = Actions.TRANSFER_DEST;
 
         vm.expectRevert();
         lib.transferMustHold(actions);
     }
 
     function testTransferMustHold_PassesIfTransferWithHold() public view {
-        uint256 actions = Actions.TRANSFER | Actions.HOLD;
+        uint256 actions = Actions.TRANSFER_DEST | Actions.HOLD;
         lib.transferMustHold(actions);
     }
 
@@ -83,7 +83,7 @@ contract ActionsTest is Test {
         uint256 appActions =
             Actions.MINT |
             Actions.HOLD |
-            Actions.TRANSFER;
+            Actions.TRANSFER_DEST;
 
         uint256 userActions =
             Actions.MINT;
@@ -100,7 +100,7 @@ contract ActionsTest is Test {
         uint256 appActions =
             Actions.MINT |
             Actions.HOLD |
-            Actions.TRANSFER;
+            Actions.TRANSFER_DEST;
 
         lib.allowed(userActions, appActions);
     }
@@ -109,7 +109,7 @@ contract ActionsTest is Test {
         uint256 userActions =
             Actions.MINT |
             Actions.HOLD |
-            Actions.TRANSFER;
+            Actions.TRANSFER_DEST;
 
         uint256 appActions =
             Actions.MINT;

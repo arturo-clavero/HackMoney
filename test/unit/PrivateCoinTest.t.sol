@@ -12,23 +12,26 @@ contract PrivateCoinTest is Test {
 
     address engine = address(0xE);
     address app    = address(0xA);
-    address user1  = address(0x1);
+    address user1;
+    uint256 user1Pk;
     address user2  = address(0x2);
+    address spender  = address(0x5);
 
 
-    // all 3-bit combinations for MINT | HOLD | TRANSFER
+    // all 3-bit combinations for MINT | HOLD | TRANSFER_DEST
     uint256[8] ACTION_SETS = [
         0,
         Actions.MINT,
         Actions.HOLD,
-        Actions.TRANSFER,
+        Actions.TRANSFER_DEST,
         Actions.MINT | Actions.HOLD,
-        Actions.MINT | Actions.TRANSFER,
-        Actions.HOLD | Actions.TRANSFER,
-        Actions.MINT | Actions.HOLD | Actions.TRANSFER
+        Actions.MINT | Actions.TRANSFER_DEST,
+        Actions.HOLD | Actions.TRANSFER_DEST,
+        Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST
     ];
 
     function setUp() public {
+        (user1, user1Pk) = makeAddrAndKey("alice");
         lib = new BootstrapActions();
     }
 
@@ -60,6 +63,37 @@ contract PrivateCoinTest is Test {
         vm.prank(engine);
         c.updateUserList(users, new address[](0));
     }
+    
+    function signPermit(
+        PrivateCoin c,
+        address owner,
+        uint256 ownerPk,
+        address allowed,
+        uint256 value,
+        uint256 deadline
+    ) internal view returns (uint8 v, bytes32 r, bytes32 s) {
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                c.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        keccak256(
+                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                        ),
+                        owner,
+                        allowed,
+                        value,
+                        c.nonces(owner),
+                        deadline
+                    )
+                )
+            )
+        );
+
+        return vm.sign(ownerPk, digest);
+    }
+
 
 //constructor:
 
@@ -112,43 +146,81 @@ contract PrivateCoinTest is Test {
 
 //transfer: 
 
-    function testTransferFrom_AllCombos() public {
+
+    function _setUpTransfer(uint256 userActions, uint256 appActions) internal returns (PrivateCoin, address) {        
+
+        if (!isValid(userActions, appActions)) return (setupCoin(Actions.MINT, Actions.HOLD), address(0));
+
+
+        if (
+            userActions & Actions.TRANSFER_DEST == 0 &&
+            appActions & Actions.TRANSFER_DEST == 0
+        ) return (setupCoin(Actions.MINT, Actions.HOLD), address(0));
+
+        PrivateCoin c = setupCoin(appActions, userActions);
+        grantUser(c, user1);
+        grantUser(c, user2);
+
+        address minter = (appActions & Actions.MINT != 0) ? app : user1;
+
+        vm.prank(engine);
+        c.mint(minter, user1, 2);
+
+        return (c, minter);
+    }
+
+    function testTransfer_AllCombos() public {
         for (uint256 u = 0; u < ACTION_SETS.length; u++) {
             for (uint256 a = 0; a < ACTION_SETS.length; a++) {
                 uint256 userActions = ACTION_SETS[u];
                 uint256 appActions  = ACTION_SETS[a];
+                (PrivateCoin c, address minter) = _setUpTransfer(userActions, appActions);
+                if (minter == address(0)) continue;
+            
+                bool receiverCanReceive = (userActions & Actions.TRANSFER_DEST != 0);
 
-                if (!isValid(userActions, appActions)) continue;
-                if (userActions & Actions.TRANSFER == 0 && appActions & Actions.TRANSFER == 0) continue;
-                address minter;
-                if (appActions & Actions.MINT != 0)
-                    minter = app;
-                else
-                    minter = user1;
-
-                PrivateCoin c = setupCoin(appActions, userActions);
-                grantUser(c, user1);
-                grantUser(c, user2);
-
-                vm.prank(engine);
-                c.mint(minter, user1, 2);
-
-                vm.startPrank(engine);
-
-                bool receiverCanTransfer = (userActions & Actions.TRANSFER != 0);
-
-                if (receiverCanTransfer) {
-                    c.transferFrom(user1, user2, 1);
+                vm.startPrank(user1);
+                if (receiverCanReceive) {
+                    c.transfer(user2, 1);
                     assertEq(c.balanceOf(user2), 1);
                 } else {
-                    vm.expectRevert();
-                    c.transferFrom(user1, user2, 1);
+                    vm.expectRevert("Invalid permission");
+                    c.transfer(user2, 1);
                 }
-
                 vm.stopPrank();
             }
         }
     }
+
+    function testTransferFrom_WithPermit_AllCombos() public {
+        uint256 deadline = block.timestamp + 1 days;
+
+        for (uint256 u = 0; u < ACTION_SETS.length; u++) {
+            for (uint256 a = 0; a < ACTION_SETS.length; a++) {
+                uint256 userActions = ACTION_SETS[u];
+                uint256 appActions  = ACTION_SETS[a];
+                (PrivateCoin c, address minter) = _setUpTransfer(userActions, appActions);
+                if (minter == address(0)) continue;
+
+
+                (uint8 v, bytes32 r, bytes32 s) = signPermit(c, user1, user1Pk, spender, 1, deadline);
+
+                c.permit(user1, spender, 1, deadline, v, r, s);
+
+                bool receiverCanReceive = (userActions & Actions.TRANSFER_DEST != 0);
+
+                vm.prank(spender);
+                if (receiverCanReceive) {
+                    c.transferFrom(user1, user2, 1);
+                    assertEq(c.balanceOf(user2), 1);
+                } else {
+                    vm.expectRevert("Invalid permission");
+                    c.transferFrom(user1, user2, 1);
+                }
+            }
+        }
+    }
+
 
 //burn :
 
@@ -186,26 +258,12 @@ contract PrivateCoinTest is Test {
     }
 
     function testBurn_RevertsIfNotEngine() public {
-        PrivateCoin c = setupCoin(Actions.MINT | Actions.HOLD | Actions.TRANSFER, Actions.MINT | Actions.HOLD | Actions.TRANSFER);
+        PrivateCoin c = setupCoin(Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST, Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST);
         grantUser(c, user1);
 
         vm.prank(user1);
         vm.expectRevert();
         c.burn(user1, 1);
-    }
-
-//disabled actions:
-
-    function testApproveAlwaysReverts() public {
-        PrivateCoin c = setupCoin(Actions.MINT | Actions.HOLD | Actions.TRANSFER, Actions.MINT | Actions.HOLD | Actions.TRANSFER);
-        vm.expectRevert();
-        c.approve(user2, 100);
-    }
-
-    function testTransferAlwaysReverts() public {
-        PrivateCoin c = setupCoin(Actions.MINT | Actions.HOLD | Actions.TRANSFER, Actions.MINT | Actions.HOLD | Actions.TRANSFER);
-        vm.expectRevert();
-        c.transfer(user2, 100);
     }
 
 }
