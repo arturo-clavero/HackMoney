@@ -100,10 +100,10 @@ contract HardPeg is AppManager, Security {
     //pro rata instead
     function _sendCollateralBasket(uint256 id, address to, uint256 amount) internal {
         uint256 _totalPool = totalPool;
-        uint256 len = globalCollateralSupport.length;
+        uint256 len = globalCollateralSupported.length;
 
         for (uint256 i = 0; i < len; i++){
-            address token = globalCollateralSupport[i];
+            address token = globalCollateralSupported[i];
             uint256 proRata = (amount *  globalPool[token]) / totalPool;
             globalPool[token] -= proRata;
             IERC20(token).safeTransfer(msg.sender, proRata);

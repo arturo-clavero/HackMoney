@@ -5,6 +5,9 @@ import {CollateralManager} from "./CollateralManager.sol";
 import {PrivateCoin} from "./../../PrivateCoin.sol";
 import {IPrivateCoin} from "./../../interfaces/IPrivateCoin.sol";
 
+/**
+ * @notice Input parameters used when registering a new app instance.
+ */
 struct AppInput {
     string name;
     string symbol;
@@ -14,6 +17,9 @@ struct AppInput {
     address[] tokens;
 }
 
+/**
+ * @notice Persistent configuration for a registered app.
+ */
 struct AppConfig {
     address owner;
     address coin;
@@ -22,22 +28,49 @@ struct AppConfig {
 }
 
 /**
- * @notice Management for each app instance
- * @dev stores app specific configurations and manages adding new instances
+ * @title AppManager
+ * @notice Factory and configuration layer for protocol app instances.
+ *
+ * @dev
+ * Each app represents an isolated stablecoin instance with:
+ * - Its own PrivateCoin (ERC-20 & ERC20-Permit)
+ * - Its own access-controlled user list
+ * - A scoped set of supported collateral assets
+ *
+ * For users depositing, collateral eligibility is enforced in two layers:
+ * 1. Protocol-level support via CollateralManager
+ * 2. App-level opt-in via bitmasked collateral IDs
+ *
+ * This contract does not implement minting/burning/transfer logic directly;
+ * it provides validated internal helpers for inheriting modules.
  */
 abstract contract AppManager is CollateralManager {
+    /// @dev Maximum number of collateral types an app may enable
     uint256 private constant MAX_COLLATERAL_TYPES = 5;
+
+    /// @dev Auto-incremented app identifier (starts at 1)
     uint256 private latestId = 1;
+
+    /// @dev App ID => configuration
     mapping(uint256 id => AppConfig) private appConfig;
+
+    /// @dev Stablecoin address => app ID  
     mapping(address token => uint256 id) private stablecoins;
     
+    /// @dev Emitted when a new app instance is registered.
     event RegisteredApp(address indexed owner, uint256 indexed id, address coin);
  
-    //-> called per app at registration
-    // * creates id
-    // * creates coin
-    // * calculates tokens allowed int from array
-    // -> stores config: tokens allowed, coin and owner
+    /**
+     * @notice Registers a new app instance and deploys its PrivateCoin.
+     *
+     * @dev
+     * - Deploys a new PrivateCoin bound to the app
+     * - Assigns a unique app ID
+     * - Computes the app's allowed collateral set
+     * - Enforces at least one valid collateral
+     *
+     * Collateral tokens must already be supported by the protocol.
+     */
     function newInstance(AppInput calldata config) external returns (uint256 id) {
         id = latestId;
         latestId = id + 1;
@@ -72,21 +105,22 @@ abstract contract AppManager is CollateralManager {
         emit RegisteredApp(msg.sender, id, coin);
     }
 
-    //->update(add/delete) user list 
-    // use toAdd array : new users to add
-    // use toRevoke array : old users to delete
+    /**
+     * @notice Updates the authorized user list for an app.
+     * @dev Only callable by the app owner.
+     */
     function updateUserList(uint256 id, address[] memory toAdd, address[] memory toRevoke) public {
-        //ONLY APP
         AppConfig storage thisApp = appConfig[id];
         require(msg.sender == thisApp.owner);
 
         IPrivateCoin(thisApp.coin).updateUserList(toAdd, toRevoke);
     }
 
-    //->add app-specific support for collateral
-    // * must already be supported by the protocol
+    /**
+     * @notice Enables an additional collateral asset for an app.
+     * @dev Collateral must already be protocol-supported.
+     */
     function addCollateral(uint256 appID, address token) external {
-        //ONLY APP
         AppConfig storage thisApp = appConfig[appID];
         require(msg.sender == thisApp.owner);
 
@@ -95,10 +129,11 @@ abstract contract AppManager is CollateralManager {
         thisApp.tokensAllowed |= 1 << colID;
     }
 
-
-    //->delete app-specific support for collateral
+    /**
+     * @notice Removes collateral support from an app.
+     * @dev At least one collateral must remain enabled.
+     */
     function removeCollateral(uint256 appID, address token) external {
-        //ONLY APP
         AppConfig storage thisApp = appConfig[appID];
         require(msg.sender == thisApp.owner);
 
@@ -108,34 +143,46 @@ abstract contract AppManager is CollateralManager {
         require(thisApp.tokensAllowed != 0, "At least One Collateral supported");
     }
 
+    /**
+     * @dev Checks whether a collateral token is enabled for an app.
+     */
     function _isAppCollateralAllowed(uint256 appID, address token) internal view returns (bool) {
         uint256 colID = collateralConfig[token].id;
         return (appConfig[appID].tokensAllowed & 1 << colID != 0);
     }
 
-    //->check app-specific support for collateral
+    /**
+     * @dev Mints app-specific stablecoin.
+     */
     function _mintAppToken(uint256 appID, address to, uint256 value) internal{
         IPrivateCoin(appConfig[appID].coin).mint(msg.sender, to, value);
     }
 
-    //burn app-specific STABLECOIN
-    //  * safe external call
+    /**
+     * @dev Burns app-specific stablecoin.
+     */
     function _burnAppToken(uint256 appID, uint256 value) internal {
         IPrivateCoin(appConfig[appID].coin).burn(msg.sender, value);
     }
 
-    //trasnfer app-specific STABLECOIN from PERMIT
-    //  * safe external call
+    /**
+     * @dev Transfers app-specific stablecoin using permit approval.
+     */
     function _transferFromAppTokenPermit(uint256 appID, address from, address to, uint256 value) internal {
         IPrivateCoin(appConfig[appID].coin).transferFrom(from, to, value);
     }
 
-    //get STABLECOIN's app id
+    /**
+     * @dev Resolves an app ID from a stablecoin address.
+     */
     function _getStablecoinID(address token) internal view returns (uint256 id) {
         id = stablecoins[token];
         require (id != 0, "Invalid stablecoin address");
     }
 
+    /**
+     * @dev Returns app configuration.
+     */
     function _getAppConfig(uint256 id) internal returns (AppConfig memory){
         return appConfig[id];
     }
