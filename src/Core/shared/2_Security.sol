@@ -94,14 +94,14 @@ abstract contract Security is Ownable{
     ///  @notice Updates the global debt cap. Requires timelock governance.
     function updateGlobalDebtCap(uint256 newGlobalDebtCap) external onlyTimeLock {
         if (newGlobalDebtCap < 0) revert InvalidCapValue();
-        uint256 oldCap = globalDebtCap;
+        // uint256 oldCap = globalDebtCap;
         globalDebtCap = newGlobalDebtCap;
         // emit globalDebtCapUpdated(oldCap, newGlobalDebtCap);
     }
     /// @notice Updates the maximum mint per transaction. Can only be called by governance timelock.
     function updateMintCapPerTx(uint256 newMintCapPerTransaction) external onlyTimeLock {
         if (newMintCapPerTransaction < 0) revert InvalidCapValue();
-        uint256 oldCap = mintCapPerTransaction;
+        // uint256 oldCap = mintCapPerTransaction;
         mintCapPerTransaction = newMintCapPerTransaction;
         // emit mintCapPerTransactionUpdated(oldCap, newMintCapPerTransaction);
     }
