@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.13;
 
 import {CollateralManager} from "./CollateralManager.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";

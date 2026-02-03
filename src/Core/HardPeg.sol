@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {AccessManager} from "./shared/AccessManager.sol";
 import {CollateralManager} from "./shared/CollateralManager.sol";
-import {Security} from "./shared/2_Security.sol";
+import {Security} from "./shared/Security.sol";
 import {AppManager} from "./shared/AppManager.sol";
 
 import {RiskEngine} from "./../utils/RiskEngineLib.sol";
