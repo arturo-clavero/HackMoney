@@ -46,7 +46,6 @@ contract HardPeg is AppManager, Security {
  //LOOP ITEARTIONS THROUGH ALL SUPPORTED COLLATERAL FOR THE APP
 
     constructor(uint256 globalDebtcap, uint256 mintCapPerTx, address owner, address timelock)
-    AccessManager(owner, timelock)
     CollateralManager(0)
     Security(globalDebtcap, mintCapPerTx, owner, timelock)
     {}

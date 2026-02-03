@@ -23,6 +23,8 @@ abstract contract BaseEconomicTest is Test {
     address[] users;
     uint256[] usersPK;
     uint256 totalUsers;
+    uint256 globalDebtcap = 1000000;
+    uint256 mintCapPerTx = 10000;
 
     mapping(uint256 id => address) appOwners;
     uint256[] appIDs;
@@ -33,7 +35,7 @@ abstract contract BaseEconomicTest is Test {
 
     // child test decides WHICH peg
     function _deployPeg() internal virtual returns (IPeg){
-        HardPeg hard = new HardPeg(owner, timelock);
+        HardPeg hard = new HardPeg(globalDebtcap, mintCapPerTx, owner, timelock);
         return IPeg(address(hard));
     }
 
