@@ -46,8 +46,9 @@ abstract contract Security is Ownable{
         uint256 _globalDebtCap, 
         uint256 _mintCapPerTx,
         address _owner ) {
-        if (_globalDebtCap < 0) revert InvalidCapValue();
-        if(_mintCapPerTx < 0) revert InvalidCapValue();
+        if (_globalDebtCap == 0) revert InvalidCapValue();
+        if(_mintCapPerTx == 0) revert InvalidCapValue();
+        if (_mintCapPerTx > _globalDebtCap) revert InvalidCapValue();
 
         globalDebtCap = _globalDebtCap;
         mintCapPerTx = _mintCapPerTx;
