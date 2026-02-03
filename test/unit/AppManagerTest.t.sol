@@ -61,6 +61,8 @@ contract AppManagerTest is Test {
     address col3;
     address notSupportedCol = address(0x104);
 
+    event RegisteredApp(address indexed owner, uint256 indexed id, address coin);
+
     function setUp() public {
         manager = new AppManagerHarness(timelock);
         (user3, user3PK) = makeAddrAndKey("alice");
@@ -132,7 +134,7 @@ contract AppManagerTest is Test {
         input.tokens[0] = address(0xdead); // id = 0
 
         vm.prank(owner);
-        vm.expectRevert("At least One Collateral supported");
+        vm.expectRevert(Error.AtLeastOneCollateralSupported.selector);
         manager.newInstance(input);
     }
 
@@ -225,7 +227,7 @@ contract AppManagerTest is Test {
         manager.newInstance(_defaultInput());
 
         vm.prank(owner);
-        vm.expectRevert("Collateral not supported by our Protocol");
+        vm.expectRevert(Error.CollateralNotSupportedByProtocol.selector);
         manager.addAppCollateral(1, address(0xdead));
     }
 
@@ -248,7 +250,7 @@ contract AppManagerTest is Test {
         manager.newInstance(input);
 
         vm.prank(owner);
-        vm.expectRevert("At least One Collateral supported");
+        vm.expectRevert(Error.AtLeastOneCollateralSupported.selector);
         manager.removeAppCollateral(1, col1);
     }
 
@@ -262,7 +264,7 @@ contract AppManagerTest is Test {
     }
 
     function testGetStablecoinID_Revert_Invalid() public {
-        vm.expectRevert("Invalid stablecoin address");
+        vm.expectRevert(Error.InvalidTokenAddress.selector);
         manager.exposed_getStablecoinID(address(0xdead));
     }
 
@@ -343,6 +345,178 @@ contract AppManagerTest is Test {
 
         uint256 supply = IERC20(manager.getAppCoin(1)).totalSupply();
         assertEq(supply, 120, "Supply should sum across all users");
+    }
+
+// newInstance extended tests
+
+    function testNewInstance_EventEmitted() public {
+        AppInput memory input = _defaultInput();
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit RegisteredApp(owner, 1, address(0)); // coin address will be ignored in check
+        manager.newInstance(input);
+    }
+
+    function testNewInstance_DuplicateCollateralIgnored() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](3);
+        input.tokens[0] = col1;
+        input.tokens[1] = col1; // duplicate
+        input.tokens[2] = col2;
+
+        vm.prank(owner);
+        uint256 id = manager.newInstance(input);
+
+        AppConfig memory cfg = manager.exposed_getAppConfig(id);
+        // Ensure duplicate did not break tokensAllowed
+        assertEq(cfg.tokensAllowed, (1 << 1) | (1 << 2));
+    }
+
+    function testNewInstance_MaxCollateralBoundary() public {
+        AppInput memory input = _defaultInput();
+        input.tokens = new address[](5); // exactly MAX_COLLATERAL_TYPES
+        input.tokens[0] = col1;
+        input.tokens[1] = col2;
+        input.tokens[2] = col3;
+        input.tokens[3] = Core._newToken();
+        input.tokens[4] = Core._newToken();
+
+        vm.prank(owner);
+        manager.newInstance(input); // should succeed
+
+        input.tokens = new address[](6); // exactly MAX_COLLATERAL_TYPES
+        input.tokens[0] = col1;
+        input.tokens[1] = col2;
+        input.tokens[2] = col3;
+        input.tokens[3] = Core._newToken();
+        input.tokens[4] = Core._newToken();
+        input.tokens[5] = Core._newToken();
+        // > MAX_COLLATERAL_TYPES
+        vm.prank(owner);
+        vm.expectRevert(); // expect revert
+        manager.newInstance(input);
+    }
+
+    function testNewInstance_EmptyUserList() public {
+        AppInput memory input = _defaultInput();
+        input.users = _emptyAddr();
+
+        vm.prank(owner);
+        uint256 id = manager.newInstance(input);
+        AppConfig memory cfg = manager.exposed_getAppConfig(id);
+        assertTrue(cfg.coin != address(0));
+    }
+
+// updateUserList extended tests
+
+    function testUpdateUserList_EmptyArrays() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.updateUserList(1, _emptyAddr(), _emptyAddr());
+    }
+
+    function testUpdateUserList_AddAndRevokeSameUser() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        address[] memory users = _singleUser(user1);
+        vm.prank(owner);
+        manager.updateUserList(1, users, users); // idempotent
+    }
+
+// add/remove collateral extended tests
+
+    function testAddAlreadyAddedCollateral() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.addAppCollateral(1, col1); // already added, should not fail
+        assertTrue(manager.exposed_isAllowed(1, col1));
+    }
+
+    function testRemoveCollateralNotEnabled() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        // Removing col3 which was never added
+        vm.prank(owner);
+        manager.removeAppCollateral(1, col3);
+        assertFalse(manager.exposed_isAllowed(1, col3));
+    }
+
+// mint / burn / transfer extended tests
+
+    function testMintToZeroAddress() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        vm.expectRevert(); // should revert if minting to zero address
+        manager.exposed_mint(1, address(0), 10);
+    }
+
+    function testBurnMoreThanBalance() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.exposed_mint(1, user1, 10);
+
+        vm.prank(user1);
+        vm.expectRevert(); // burn > balance
+        manager.exposed_burn(1, 20);
+    }
+
+    function testTransferMoreThanBalance() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.exposed_mint(1, user1, 10);
+
+        // transfer > balance
+        vm.startPrank(user1);
+        vm.expectRevert();
+        manager.exposed_transfer(1, user1, user2, 20);
+        vm.stopPrank();
+    }
+
+    function testBurnFromZeroAddress() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(address(0));
+        vm.expectRevert();
+        manager.exposed_burn(1, 10);
+    }
+
+    function testTransferToZeroAddress() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.exposed_mint(1, user1, 10);
+
+        vm.startPrank(user1);
+        vm.expectRevert();
+        manager.exposed_transfer(1, user1, address(0), 5);
+        vm.stopPrank();
+    }
+
+    function testGetStablecoinID_MultipleApps() public {
+        vm.prank(owner);
+        uint256 id1 = manager.newInstance(_defaultInput());
+        vm.prank(owner);
+        uint256 id2 = manager.newInstance(_defaultInput());
+
+        address coin1 = manager.exposed_getAppConfig(id1).coin;
+        address coin2 = manager.exposed_getAppConfig(id2).coin;
+
+        assertEq(manager.exposed_getStablecoinID(coin1), id1);
+        assertEq(manager.exposed_getStablecoinID(coin2), id2);
     }
 
 }

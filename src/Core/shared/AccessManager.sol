@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../../utils/Errors.sol";
+import {Error} from "../../utils/ErrorLib.sol";
 
 /**
  * @title AccessManager
@@ -88,7 +88,7 @@ abstract contract AccessManager {
      */
     modifier onlyRole(uint256 role){
         if(roles[msg.sender] & role == 0)
-            revert InvalidAccess();
+            revert Error.InvalidAccess();
         _;
     }
 
@@ -97,7 +97,7 @@ abstract contract AccessManager {
      */
     modifier onlyOwner(){
         if(msg.sender != owner)
-            revert InvalidAccess();
+            revert Error.InvalidAccess();
         _;
     }
 
@@ -108,7 +108,7 @@ abstract contract AccessManager {
      */
     modifier onlyTimeLock() {
         if (msg.sender != timelock)
-            revert InvalidAccess();
+            revert Error.InvalidAccess();
         _;
     }
 

@@ -11,26 +11,26 @@ library RiskEngine {
     // function _receiveToken(address token, uint256 amount) internal payable {
     //     if (token == address(0)) {
     //         // ETH deposit 
-    //         require(msg.value != 0, "Invalid amount");
+    //         require(msg.value != 0, Error.InvalidAmount.selector);
     //         amount = msg.value;
     //     } else { 
     //         //ERC20 deposit
-    //         require(msg.value == 0, "Invalid amount");
-    //         require(amount != 0, "Invalid amount");
+    //         require(msg.value == 0, Error.InvalidAmount.selector);
+    //         require(amount != 0, Error.InvalidAmount.selector);
     //         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
     //     }
     // }
 
-    function _sendToken(address token, uint256 amount) internal {
-         require(amount != 0, "Invalid amount");
+    // function _sendToken(address token, uint256 amount) internal {
+    //      require(amount != 0, Error.InvalidAmount.selector);
 
-        if (token == address(0)) {
-            // ETH withdrawal
-            (bool ok, ) = msg.sender.call{value: amount}("");
-            require(ok, "ETH transfer failed");
-        } else {
-            // ERC20 withdrawal
-            IERC20(token).safeTransfer(msg.sender, amount);
-        }
-    }
+    //     if (token == address(0)) {
+    //         // ETH withdrawal
+    //         (bool ok, ) = msg.sender.call{value: amount}("");
+    //         require(ok, "ETH transfer failed");
+    //     } else {
+    //         // ERC20 withdrawal
+    //         IERC20(token).safeTransfer(msg.sender, amount);
+    //     }
+    // }
 }

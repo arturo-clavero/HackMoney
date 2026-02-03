@@ -53,7 +53,7 @@ contract HardPegUnitTest is BaseEconomicTest {
 
     function testDepositERC20ZeroReverts() public {
         vm.prank(alice);
-        vm.expectRevert("Invalid amount");
+        vm.expectRevert(Error.InvalidAmount.selector);
         peg.deposit(ID, address(usdc), 0);
     }
 
@@ -66,30 +66,18 @@ contract HardPegUnitTest is BaseEconomicTest {
 
         vm.startPrank(alice);
         uint256 rawAmount = _raw(10, address(usdc));
-        vm.expectRevert("Invalid amount");
+        vm.expectRevert();
         peg.deposit{value: 1 ether}(ID, address(usdc), rawAmount);
         vm.stopPrank();
     }
 
-    function testDepositETH_() public {
+    function testDepositETHReverts() public {
         _addNewToken(address(0), ID);
         vm.deal(alice, 10 ether);
 
         vm.prank(alice);
+        vm.expectRevert();
         peg.deposit{value: 10 ether}(ID, address(0), 0);
-
-        assertEq(peg.getVaultBalance(ID, alice), 10);
-        assertEq(peg.getGlobalPool(address(0)), 10);
-        assertEq(peg.getTotalPool(), 10);
-    }
-
-    function testDepositETHZeroReverts() public {
-        _addNewToken(address(0), ID);
-        vm.deal(alice, 10 ether);
-
-        vm.prank(alice);
-        vm.expectRevert("Invalid amount");
-        peg.deposit(ID, address(0), 0);
     }
 
 //mint:

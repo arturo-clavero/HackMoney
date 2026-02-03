@@ -155,7 +155,7 @@ contract PrivateCoinTest is Test {
                     c.transfer(user2, 1);
                     assertEq(c.balanceOf(user2), 1);
                 } else {
-                    vm.expectRevert(InvalidPermission.selector);
+                    vm.expectRevert(Error.InvalidPermission.selector);
                     c.transfer(user2, 1);
                 }
                 vm.stopPrank();
@@ -184,7 +184,7 @@ contract PrivateCoinTest is Test {
                     c.transferFrom(user1, user2, 1);
                     assertEq(c.balanceOf(user2), 1);
                 } else {
-                    vm.expectRevert(InvalidPermission.selector);
+                    vm.expectRevert(Error.InvalidPermission.selector);
                     c.transferFrom(user1, user2, 1);
                 }
             }
@@ -246,7 +246,7 @@ contract PrivateCoinTest is Test {
         grantUser(c, user1);
 
         vm.prank(user1);
-        vm.expectRevert(InvalidAccess.selector);
+        vm.expectRevert(Error.InvalidAccess.selector);
         c.mint(user1, user1, 1);
     }
 
@@ -260,7 +260,7 @@ contract PrivateCoinTest is Test {
         users[0] = user1;
 
         vm.prank(user1);
-        vm.expectRevert(InvalidAccess.selector);
+        vm.expectRevert(Error.InvalidAccess.selector);
         c.updateUserList(users, new address[](0));
     }
 
@@ -391,7 +391,7 @@ contract PrivateCoinTest is Test {
         c.mint(app, user1, 1);
 
         vm.prank(spender);
-        vm.expectRevert(InvalidPermission.selector);
+        vm.expectRevert(Error.InvalidPermission.selector);
         c.transferFrom(user1, user2, 1);
     }
 
@@ -415,7 +415,7 @@ contract PrivateCoinTest is Test {
         c.updateUserList(new address[](0), revoke);
 
         vm.prank(user1);
-        vm.expectRevert(InvalidPermission.selector);
+        vm.expectRevert(Error.InvalidPermission.selector);
         c.transfer(user2, 1);
     }
 
@@ -430,7 +430,7 @@ contract PrivateCoinTest is Test {
         grantUser(c, user1);
 
         vm.prank(engine);
-        vm.expectRevert(InvalidPermission.selector);
+        vm.expectRevert(Error.InvalidPermission.selector);
         c.mint(user1, user1, 1);
     }
 

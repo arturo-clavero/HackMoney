@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {CollateralManager} from "./CollateralManager.sol";
 import {PrivateCoin} from "./../../PrivateCoin.sol";
 import {IPrivateCoin} from "./../../interfaces/IPrivateCoin.sol";
+import {Error} from "../../utils/ErrorLib.sol";
 
 /**
  * @notice Input parameters used when registering a new app instance.
@@ -87,13 +88,15 @@ abstract contract AppManager is CollateralManager {
 
         uint256 tokensAllowed;
         uint256 len = config.tokens.length;
-        require(len < MAX_COLLATERAL_TYPES);
+        if (len > MAX_COLLATERAL_TYPES)
+            revert Error.MaxArrayBoundsExceeded();
         for (uint256 i = 0; i < len; i ++){
             uint256 colID = globalCollateralConfig[config.tokens[i]].id;
             if (colID == 0) continue;
             tokensAllowed |= 1 << colID;
         }
-        require (tokensAllowed != 0, "At least One Collateral supported");
+        if (tokensAllowed == 0)
+            revert Error.AtLeastOneCollateralSupported();
         
         appConfig[id] = AppConfig(
             msg.sender,
@@ -112,7 +115,8 @@ abstract contract AppManager is CollateralManager {
      */
     function updateUserList(uint256 id, address[] memory toAdd, address[] memory toRevoke) public {
         AppConfig storage thisApp = appConfig[id];
-        require(msg.sender == thisApp.owner);
+        if (msg.sender != thisApp.owner)
+            revert Error.InvalidAccess();
 
         IPrivateCoin(thisApp.coin).updateUserList(toAdd, toRevoke);
     }
@@ -123,10 +127,12 @@ abstract contract AppManager is CollateralManager {
      */
     function addAppCollateral(uint256 appID, address token) external {
         AppConfig storage thisApp = appConfig[appID];
-        require(msg.sender == thisApp.owner);
+        if (msg.sender != thisApp.owner)
+            revert Error.InvalidAccess();
 
         uint256 colID = globalCollateralConfig[token].id;
-        require(colID != 0, "Collateral not supported by our Protocol");
+        if (colID == 0)
+            revert Error.CollateralNotSupportedByProtocol();
         thisApp.tokensAllowed |= 1 << colID;
     }
 
@@ -136,12 +142,15 @@ abstract contract AppManager is CollateralManager {
      */
     function removeAppCollateral(uint256 appID, address token) external {
         AppConfig storage thisApp = appConfig[appID];
-        require(msg.sender == thisApp.owner);
+        if (msg.sender != thisApp.owner)
+            revert Error.InvalidAccess();
 
         uint256 colID = globalCollateralConfig[token].id;
-        require(colID != 0, "Collateral not supported by our Protocol");
+        if (colID == 0)
+            revert Error.CollateralNotSupportedByProtocol();
         thisApp.tokensAllowed &= ~ (1 << colID);
-        require(thisApp.tokensAllowed != 0, "At least One Collateral supported");
+        if (thisApp.tokensAllowed == 0)
+            revert Error.AtLeastOneCollateralSupported();
     }
 
     /**
@@ -178,7 +187,8 @@ abstract contract AppManager is CollateralManager {
      */
     function _getStablecoinID(address token) internal view returns (uint256 id) {
         id = stablecoins[token];
-        require (id != 0, "Invalid stablecoin address");
+        if (id == 0)
+            revert Error.InvalidTokenAddress();
     }
 
     /**
@@ -193,5 +203,152 @@ abstract contract AppManager is CollateralManager {
      */
     function getAppCoin(uint256 id) external view returns (address){
         return appConfig[id].coin;
+    }
+}
+
+
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import {AppManager} from "./AppManager.sol";
+import {Security} from "./2_Security.sol";
+import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
+import {RiskEngine} from "./../utils/RiskEngineLib.sol";
+import {Error} from "../../utils/ErrorLib.sol";
+
+
+contract HardPeg is AppManager, Security {
+    using SafeERC20 for IERC20;
+    using RiskEngine for address;
+
+    /// @notice Internal scaling factor for value-to-raw conversions
+    uint256 private constant DEFAULT_COIN_SCALE = 1e18;
+
+    /// @notice Internal scaling factor used for other math (WAD)
+    uint256 private constant WAD = 1e9;
+
+    /// @notice Total value of all collateral across all apps (in "value units")
+    uint256 private totalPool;
+
+    /// @notice Total supply of all app stablecoins (in "value units")
+    uint256 private totalSupply;
+
+    /// @notice Collateral type => total value amount
+    mapping(address => uint256) private globalPool;
+
+    /// @notice App ID => user address => value amount deposited
+    mapping(uint256 => mapping(address => uint256)) private vault;
+
+    /**
+     * @notice Constructor
+     * @param owner Protocol owner address
+     * @param timelock Protocol timelock address
+     */
+    constructor(address owner, address timelock)
+        AppManager()
+        Security()
+    {
+        AccessManager(owner, timelock);
+        CollateralManager(0);
+    }
+
+    /**
+     * @notice Deposit collateral into the app
+     * @dev Only supported collateral is accepted. `rawAmount` is in token units.
+     * @param id App ID
+     * @param token Collateral token address
+     * @param rawAmount Amount of collateral tokens to deposit
+     */
+    function deposit(uint256 id, address token, uint256 rawAmount) external {
+        if (!_isAppCollateralAllowed(id, token))
+            revert Error.CollateralNotSupportedByApp();
+        if (rawAmount == 0) revert Error.InvalidAmount();
+
+        IERC20(token).safeTransferFrom(msg.sender, address(this), rawAmount);
+        uint256 valueAmount = rawAmount / globalCollateralConfig[token].scale;
+
+        vault[id][msg.sender] += valueAmount;
+        globalPool[token] += valueAmount;
+        totalPool += valueAmount;
+    }
+
+  
+    function mint(uint256 id, address to, uint256 rawAmount) public {
+        uint256 maxValue = vault[id][msg.sender];
+        uint256 valueAmount;
+
+        if (rawAmount == type(uint256).max) rawAmount = maxValue * DEFAULT_COIN_SCALE;
+
+        valueAmount = rawAmount / DEFAULT_COIN_SCALE;
+
+        vault[id][msg.sender] = maxValue - valueAmount;
+        totalSupply += valueAmount;
+        _mintAppToken(id, to, rawAmount);
+    }
+
+    function redeam(address token, uint256 rawAmount) external {
+        uint256 id = _getStablecoinID(token);
+        if (rawAmount == 0) revert Error.InvalidAmount();
+
+        uint256 valueAmount = rawAmount / DEFAULT_COIN_SCALE;
+        totalSupply -= valueAmount;
+
+        _burnAppToken(id, rawAmount);
+        _sendCollateralBasket(valueAmount);
+    }
+
+  
+    function withdrawCollateral(uint256 id, uint256 valueAmount) external {
+        uint256 maxValue = vault[id][msg.sender];
+        if (valueAmount == type(uint256).max) valueAmount = maxValue;
+
+        vault[id][msg.sender] = maxValue - valueAmount;
+        _sendCollateralBasket(valueAmount);
+    }
+
+    /// @notice Returns total value of all collateral across apps
+    function getTotalPool() external view returns (uint256) {
+        return totalPool;
+    }
+
+    /// @notice Returns total value of a specific collateral token
+    function getGlobalPool(address token) external view returns (uint256) {
+        return globalPool[token];
+    }
+
+    /// @notice Returns total supply of stablecoins across apps
+    function getTotalSupply() external view returns (uint256) {
+        return totalSupply;
+    }
+
+    /// @notice Returns the vault balance of a user in value units
+    function getVaultBalance(uint256 id, address user) external view returns (uint256) {
+        return vault[id][user];
+    }
+
+    /**
+     * @notice Internal helper to send pro-rata collateral basket
+     * @dev Distributes `valueAmount` proportionally across all supported collateral tokens.
+     *      Leaves minimal dust in the pool due to integer division rounding.
+     * @param valueAmount Amount in value units to send
+     */
+    function _sendCollateralBasket(uint256 valueAmount) internal {
+        uint256 _totalPool = totalPool;
+        uint256 _totalSent;
+        uint256 len = globalCollateralSupported.length;
+
+        for (uint256 i = 0; i < len; i++) {
+            address token = globalCollateralSupported[i];
+            uint256 proRataValue = (valueAmount * globalPool[token]) / _totalPool;
+
+            globalPool[token] -= proRataValue;
+            _totalSent += proRataValue;
+
+            uint256 proRataRaw = proRataValue * globalCollateralConfig[token].scale;
+            IERC20(token).safeTransfer(msg.sender, proRataRaw);
+        }
+
+        totalPool -= _totalSent;
     }
 }
