@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../../../src/Core/shared/CollateralManager.sol";
-import "../../../src/utils/ActionsLib.sol";
-import "../../../src/PrivateCoin.sol";
-import "../../../src/interfaces/IPrivateCoin.sol";
-
+import "../../src/Core/shared/CollateralManager.sol";
+import "../../src/Core/shared/AppManager.sol";
+import "../../src/utils/ActionsLib.sol";
+import "../../src/PrivateCoin.sol";
+import "../../src/interfaces/IPrivateCoin.sol";
+import "../mocks/MockToken.sol";
 library Core {
 
 //PC users ACTIONS
@@ -24,7 +25,32 @@ library Core {
     uint256 constant PEG_MED  = 1;
     uint256 constant PEG_SOFT = 2;
 
+    function _newAppInstanceInput() internal pure returns (AppInput memory input) {
+        input = AppInput({
+            name: "TestCoin",
+            symbol: "TC",
+            appActions: Core.defaultAppAction,
+            userActions: Core.defaultUserAction,
+            users: new address[](0),
+            tokens: new address[](0)
+        });
+    }
 
+    function _newAppInstanceInput(address[] memory users, address[] memory tokens) internal pure returns (AppInput memory input) {
+        input = AppInput({
+            name: "TestCoin",
+            symbol: "TC",
+            appActions: Core.defaultAppAction,
+            userActions: Core.defaultUserAction,
+            users: users,
+            tokens: tokens
+        });
+    }
+
+    function _newToken() internal returns (address){
+        MockToken token = new MockToken(18);
+        return address(token);
+    }
 
     function _collateralInput(address token, uint256 mode)
         internal
@@ -41,13 +67,12 @@ library Core {
         });
     }
 
-    function _collateralInput(address token)
+    function _collateralInput()
         internal
-        pure
         returns (CollateralInput memory)
     {
         return CollateralInput({
-            tokenAddress: token,
+            tokenAddress: _newToken(),
             mode: COL_MODE_STABLE,
             oracleFeeds: new address[](3),
             LTV: 50,
@@ -56,10 +81,26 @@ library Core {
         });
     }
 
-    function signPermit(
+    function _collateralInputWithFeed(address token, uint256 mode, address feed)
+        internal
+        pure
+        returns (CollateralInput memory)
+    {
+        address[] memory feeds = new address[](1);
+        feeds[0] = feed;
+        return CollateralInput({
+            tokenAddress: token,
+            mode: mode,
+            oracleFeeds: feeds,
+            LTV: 50,
+            liquidityThreshold: 80,
+            debtCap: 1000
+        });
+    }
+
+    function getDigest(
         address coin,
         address owner,
-        uint256 ownerPk,
         address allowed,
         uint256 value,
         uint256 deadline
@@ -83,33 +124,5 @@ library Core {
             )
         );
     }
-
-    function getDigest(
-        PrivateCoin c,
-        address owner,
-        uint256 ownerPk,
-        address allowed,
-        uint256 value
-    ) internal view returns (bytes32 digest) {
-        digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                c.DOMAIN_SEPARATOR(),
-                keccak256(
-                    abi.encode(
-                        keccak256(
-                            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
-                        ),
-                        owner,
-                        allowed,
-                        value,
-                        c.nonces(owner),
-                        uint256(type(uint224).max)
-                    )
-                )
-            )
-        );
-    }
-
 
 }
