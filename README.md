@@ -3,14 +3,18 @@
 > * /Core/shared/CollateralManager |--> DONE
 > * /Core/shared/AppManager        |--> DONE
 > * /Core/shared/Security|--> IN PROGRESS
-* /Core/shared/Oracle |--> X
+> * /Core/shared/Oracle |--> DONE
 > * /Core/shared/Engine |--> [removed]
 > * /Core/HardPeg | --> IN PROGRESS
 * /Core/MediumPeg | --> X
 * /Core/SoftPeg | --> X
-* /mocks/MockOracle |--> X
+> * /mocks/MockOracle |--> IN PROGRESS
 > * /PrivateCoin | --> DONE
  * /Timelock | --> X
+
+ # Possible added features
+ * Cross chain ((Li.fi for UX) Smart Contracts for the actual PrivateCoin for each peg ... )
+ * Modifiable hooks for transfers (We can offer certain hooks apps can choose to use them)
 
 ## Architecture
 

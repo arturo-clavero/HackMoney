@@ -30,12 +30,16 @@ contract HardPeg is AppManager, Security {
 
     uint256 private constant WAD = 1e9;
 
-    mapping(address colType => uint256 amount) private globalPool;
-    uint256 private totalPool;
+    uint256 private totalPool;                                     
 
+    mapping(address colType => uint256 amount) private globalPool; 
     mapping (uint256 id =>
-        mapping(address user => uint256 amount)) private vault;
-    
+        mapping(address user => uint256 amount)) private vault; 
+        
+
+ //vault -> what tokens?
+ //LOOP ITEARTIONS THROUGH ALL SUPPORTED COLLATERAL FOR THE APP
+
     constructor(address owner, address timelock)
     AccessManager(owner, timelock)
     CollateralManager(0)

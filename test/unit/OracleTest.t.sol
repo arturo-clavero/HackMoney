@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/shared/2_Oracle.sol";
+import "../../src/Core/shared/Oracle.sol";
 import "../../src/Core/shared/CollateralManager.sol";
 import "../../src/Core/shared/AccessManager.sol";
 import "../../src/mocks/MockOracle.sol";
