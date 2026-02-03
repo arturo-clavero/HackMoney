@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-// import {CollateralManager} from "./CollateralManager.sol";
-import {Ownable} from "@openzeppelin/access/Ownable.sol";
+import {AccessManager} from "./shared/AccessManager.sol";
 // import {Timelock} from "../../Y_Timelock.sol";
 
 /**
@@ -24,7 +23,7 @@ import {Ownable} from "@openzeppelin/access/Ownable.sol";
  *      - Governance (owner or timelock) manages the flags and caps via the provided external functions.
  */
 
-abstract contract Security is Ownable{
+abstract contract Security is AccessManager{
 
     bool private mintPaused;
     bool private withdrawPaused;
@@ -48,7 +47,7 @@ abstract contract Security is Ownable{
         uint256 _mintCapPerTx,
         address _owner,
         address _timelock 
-    ) Ownable(_owner) {
+    ) AccessManager(_owner, _timelock) {
         if (_globalDebtCap == 0) revert InvalidCapValue();
         if(_mintCapPerTx == 0) revert InvalidCapValue();
         if (_mintCapPerTx > _globalDebtCap) revert InvalidCapValue();
@@ -64,10 +63,6 @@ abstract contract Security is Ownable{
     }
     modifier withdrawAllowed() {
         require(withdrawPaused == false, "Withdraw is not allowed");
-        _;
-    }
-    modifier onlyTimeLock() {
-        require(msg.sender == timeLock, "Not timelock");
         _;
     }
 

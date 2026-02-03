@@ -45,9 +45,10 @@ contract HardPeg is AppManager, Security {
  //vault -> what tokens?
  //LOOP ITEARTIONS THROUGH ALL SUPPORTED COLLATERAL FOR THE APP
 
-    constructor(address owner, address timelock)
+    constructor(uint256 globalDebtcap, uint256 mintCapPerTx, address owner, address timelock)
     AccessManager(owner, timelock)
     CollateralManager(0)
+    Security(globalDebtcap, mintCapPerTx, owner, timelock)
     {}
 
     //should receive token / eth20 
