@@ -56,6 +56,23 @@ library Core {
         });
     }
 
+    function _collateralInputWithFeed(address token, uint256 mode, address feed)
+        internal
+        pure
+        returns (CollateralInput memory)
+    {
+        address[] memory feeds = new address[](1);
+        feeds[0] = feed;
+        return CollateralInput({
+            tokenAddress: token,
+            mode: mode,
+            oracleFeeds: feeds,
+            LTV: 50,
+            liquidityThreshold: 80,
+            debtCap: 1000
+        });
+    }
+
     function signPermit(
         address coin,
         address owner,
