@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {CollateralManager} from "./CollateralManager.sol";
+// import {CollateralManager} from "./CollateralManager.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
 // import {Timelock} from "../../Y_Timelock.sol";
 
@@ -52,9 +52,9 @@ abstract contract Security is Ownable{
         if (_globalDebtCap == 0) revert InvalidCapValue();
         if(_mintCapPerTx == 0) revert InvalidCapValue();
         if (_mintCapPerTx > _globalDebtCap) revert InvalidCapValue();
-        timelock = _timelock;
+        timeLock = _timelock;
         globalDebtCap = _globalDebtCap;
-        mintCapPerTx = _mintCapPerTx;
+        mintCapPerTransaction = _mintCapPerTx;
     }
 
     modifier mintAllowed() {
@@ -67,7 +67,7 @@ abstract contract Security is Ownable{
         _;
     }
     modifier onlyTimeLock() {
-        require(msg.sender == timelock, "Not timelock");
+        require(msg.sender == timeLock, "Not timelock");
         _;
     }
 
@@ -102,6 +102,7 @@ abstract contract Security is Ownable{
     ///  @notice Updates the global debt cap. Requires timelock governance.
     function updateGlobalDebtCap(uint256 newGlobalDebtCap) external onlyTimeLock {
         if (newGlobalDebtCap == 0) revert InvalidCapValue();
+        if (mintCapPerTransaction > newGlobalDebtCap) revert InvalidCapValue();
         // uint256 oldCap = globalDebtCap;
         globalDebtCap = newGlobalDebtCap;
         // emit globalDebtCapUpdated(oldCap, newGlobalDebtCap);
