@@ -45,6 +45,7 @@ struct AppConfig {
  * it provides validated internal helpers for inheriting modules.
  */
 abstract contract AppManager is CollateralManager {
+    
     /// @dev Maximum number of collateral types an app may enable
     uint256 private constant MAX_COLLATERAL_TYPES = 5;
 

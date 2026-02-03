@@ -10,7 +10,9 @@ contract AppManagerHarness is AppManager {
     address public owner;
     address public timelock;
 
-    constructor(address timelock_) CollateralManager(0) AccessManager(msg.sender, timelock_) {
+    constructor(address timelock_) 
+    CollateralManager(0) 
+    AccessManager(msg.sender, timelock_) {
         owner = msg.sender;
         timelock = timelock_;
     }
@@ -59,6 +61,22 @@ contract AppManagerTest is Test {
     address col3;
     address notSupportedCol = address(0x104);
 
+    function setUp() public {
+        manager = new AppManagerHarness(timelock);
+        (user3, user3PK) = makeAddrAndKey("alice");
+
+        col1 = Core._newToken();
+        col2 = Core._newToken();
+        col3 = Core._newToken();
+
+        vm.startPrank(timelock);
+        manager.updateGlobalCollateral(Core._collateralInput(col1, Core.COL_MODE_STABLE));
+        manager.updateGlobalCollateral(Core._collateralInput(col2, Core.COL_MODE_STABLE));
+        manager.updateGlobalCollateral(Core._collateralInput(col3, Core.COL_MODE_STABLE));
+        vm.stopPrank();
+    }
+
+
     function _defaultUsers() internal view returns (address[] memory users) {
         users = new address[](3);
         users[0] = user1;
@@ -85,21 +103,6 @@ contract AppManagerTest is Test {
 
     function _emptyAddr() internal pure returns (address[] memory arr) {
         arr = new address[](0);
-    }
-
-    function setUp() public {
-        manager = new AppManagerHarness(timelock);
-        (user3, user3PK) = makeAddrAndKey("alice");
-
-        col1 = Core._newToken();
-        col2 = Core._newToken();
-        col3 = Core._newToken();
-
-        vm.startPrank(timelock);
-        manager.updateGlobalCollateral(Core._collateralInput(col1, Core.COL_MODE_STABLE));
-        manager.updateGlobalCollateral(Core._collateralInput(col2, Core.COL_MODE_STABLE));
-        manager.updateGlobalCollateral(Core._collateralInput(col3, Core.COL_MODE_STABLE));
-        vm.stopPrank();
     }
 
     // newInstance

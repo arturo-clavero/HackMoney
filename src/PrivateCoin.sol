@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol"; 
 import {ERC20Permit} from "@openzeppelin/token/ERC20/extensions/ERC20Permit.sol"; 
 import {Actions} from "./utils/ActionsLib.sol";
+import "./utils/Errors.sol";
 
 /**
  * @title PrivateCoin
@@ -74,7 +75,8 @@ contract PrivateCoin is ERC20, ERC20Permit{
      * @dev Restricts execution to the protocol engine.
      */
     modifier onlyEngine(){
-        require(msg.sender == _engine, "Invalid access");
+        if (msg.sender != _engine)
+            revert InvalidAccess();
         _;
     }
 
@@ -175,7 +177,8 @@ contract PrivateCoin is ERC20, ERC20Permit{
     }
 
     function _needsPermission(address user, uint256 action) private view {
-        require(_permission[user] & action != 0, "Invalid permission");
+        if(_permission[user] & action == 0)
+            revert InvalidPermission();
     }
 
 }
