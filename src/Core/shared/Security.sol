@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {CollateralManager} from "./CollateralManager.sol";
 import {Ownable} from "@openzeppelin/access/Ownable.sol";
-import {Timelock} from "../../Y_Timelock.sol";
+// import {Timelock} from "../../Y_Timelock.sol";
 
 /**
  * @title pausing & governance control contract
@@ -30,6 +30,7 @@ abstract contract Security is Ownable{
     bool private withdrawPaused;
     uint256 private globalDebtCap;
     uint256 private mintCapPerTransaction;
+    address private timeLock
 
     event MintPaused(address indexed by);
     // event MintUnpaused(address indexed by);
@@ -45,11 +46,13 @@ abstract contract Security is Ownable{
     constructor (
         uint256 _globalDebtCap, 
         uint256 _mintCapPerTx,
-        address _owner ) {
+        address _owner,
+        address _timelock 
+    ) Ownable(_owner) {
         if (_globalDebtCap == 0) revert InvalidCapValue();
         if(_mintCapPerTx == 0) revert InvalidCapValue();
         if (_mintCapPerTx > _globalDebtCap) revert InvalidCapValue();
-
+        timelock = _timelock;
         globalDebtCap = _globalDebtCap;
         mintCapPerTx = _mintCapPerTx;
     }
@@ -61,6 +64,10 @@ abstract contract Security is Ownable{
     }
     modifier withdrawAllowed() {
         require(withdrawPaused == false, "Withdraw is not allowed");
+        _;
+    }
+    modifier onlyTimeLock() {
+        require(msg.sender == timelock, "Not timelock");
         _;
     }
 
@@ -94,14 +101,14 @@ abstract contract Security is Ownable{
 
     ///  @notice Updates the global debt cap. Requires timelock governance.
     function updateGlobalDebtCap(uint256 newGlobalDebtCap) external onlyTimeLock {
-        if (newGlobalDebtCap < 0) revert InvalidCapValue();
+        if (newGlobalDebtCap == 0) revert InvalidCapValue();
         // uint256 oldCap = globalDebtCap;
         globalDebtCap = newGlobalDebtCap;
         // emit globalDebtCapUpdated(oldCap, newGlobalDebtCap);
     }
     /// @notice Updates the maximum mint per transaction. Can only be called by governance timelock.
     function updateMintCapPerTx(uint256 newMintCapPerTransaction) external onlyTimeLock {
-        if (newMintCapPerTransaction < 0) revert InvalidCapValue();
+        if (newMintCapPerTransaction == 0) revert InvalidCapValue();
         // uint256 oldCap = mintCapPerTransaction;
         mintCapPerTransaction = newMintCapPerTransaction;
         // emit mintCapPerTransactionUpdated(oldCap, newMintCapPerTransaction);
