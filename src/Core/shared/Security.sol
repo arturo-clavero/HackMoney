@@ -30,7 +30,7 @@ abstract contract Security is Ownable{
     bool private withdrawPaused;
     uint256 private globalDebtCap;
     uint256 private mintCapPerTransaction;
-    address private timeLock
+    address private timeLock;
 
     event MintPaused(address indexed by);
     // event MintUnpaused(address indexed by);
