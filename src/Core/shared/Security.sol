@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {AccessManager} from "./shared/AccessManager.sol";
+import {AccessManager} from "./AccessManager.sol";
 // import {Timelock} from "../../Y_Timelock.sol";
 
 /**
