@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
+import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
 
 /**
  * @title MockAggregator

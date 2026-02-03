@@ -88,7 +88,7 @@ abstract contract AppManager is CollateralManager {
         uint256 len = config.tokens.length;
         require(len < MAX_COLLATERAL_TYPES);
         for (uint256 i = 0; i < len; i ++){
-            uint256 colID = collateralConfig[config.tokens[i]].id;
+            uint256 colID = globalCollateralConfig[config.tokens[i]].id;
             if (colID == 0) continue;
             tokensAllowed |= 1 << colID;
         }
@@ -120,11 +120,11 @@ abstract contract AppManager is CollateralManager {
      * @notice Enables an additional collateral asset for an app.
      * @dev Collateral must already be protocol-supported.
      */
-    function addCollateral(uint256 appID, address token) external {
+    function addAppCollateral(uint256 appID, address token) external {
         AppConfig storage thisApp = appConfig[appID];
         require(msg.sender == thisApp.owner);
 
-        uint256 colID = collateralConfig[token].id;
+        uint256 colID = globalCollateralConfig[token].id;
         require(colID != 0, "Collateral not supported by our Protocol");
         thisApp.tokensAllowed |= 1 << colID;
     }
@@ -133,11 +133,11 @@ abstract contract AppManager is CollateralManager {
      * @notice Removes collateral support from an app.
      * @dev At least one collateral must remain enabled.
      */
-    function removeCollateral(uint256 appID, address token) external {
+    function removeAppCollateral(uint256 appID, address token) external {
         AppConfig storage thisApp = appConfig[appID];
         require(msg.sender == thisApp.owner);
 
-        uint256 colID = collateralConfig[token].id;
+        uint256 colID = globalCollateralConfig[token].id;
         require(colID != 0, "Collateral not supported by our Protocol");
         thisApp.tokensAllowed &= ~ (1 << colID);
         require(thisApp.tokensAllowed != 0, "At least One Collateral supported");
@@ -147,7 +147,7 @@ abstract contract AppManager is CollateralManager {
      * @dev Checks whether a collateral token is enabled for an app.
      */
     function _isAppCollateralAllowed(uint256 appID, address token) internal view returns (bool) {
-        uint256 colID = collateralConfig[token].id;
+        uint256 colID = globalCollateralConfig[token].id;
         return (appConfig[appID].tokensAllowed & 1 << colID != 0);
     }
 
@@ -183,7 +183,14 @@ abstract contract AppManager is CollateralManager {
     /**
      * @dev Returns app configuration.
      */
-    function _getAppConfig(uint256 id) internal returns (AppConfig memory){
+    function _getAppConfig(uint256 id) internal view returns (AppConfig memory){
         return appConfig[id];
+    }
+
+    /**
+     * @notice Returns app's private coin interface, for testing
+     */
+    function getAppCoin(uint256 id) external view returns (address){
+        return appConfig[id].coin;
     }
 }

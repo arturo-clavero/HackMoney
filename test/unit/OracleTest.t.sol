@@ -5,8 +5,8 @@ import "forge-std/Test.sol";
 import "../../src/Core/shared/Oracle.sol";
 import "../../src/Core/shared/CollateralManager.sol";
 import "../../src/Core/shared/AccessManager.sol";
-import "../../src/mocks/MockOracle.sol";
-import "./helpers/CoreLib.t.sol";
+import "../mocks/MockOracle.sol";
+import "../utils/CoreLib.t.sol";
 
 /// @notice Test harness - makes Oracle concrete so we can deploy it
 contract OracleHarness is Oracle {
@@ -22,14 +22,14 @@ contract OracleTest is Test {
 
     address owner = address(0x1);
     address timelock = address(0x2);
-    address aUSDC = address(0xABC);
+    address aUSDC;
 
     function setUp() public {
         oracle = new OracleHarness(owner, timelock, Core.PEG_MED);
         mockFeed = new MockAggregator("aUSDC / USD", 8);
-
+        aUSDC = Core._newToken();
         vm.prank(timelock);
-        oracle.updateCollateral(
+        oracle.updateGlobalCollateral(
             Core._collateralInputWithFeed(aUSDC, Core.COL_MODE_YIELD, address(mockFeed))
         );
     }

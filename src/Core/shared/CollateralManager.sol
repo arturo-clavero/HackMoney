@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {AccessManager} from "./AccessManager.sol";
-
+import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 /**
  * @notice Input structure used when updating collateral configuration.
  */
@@ -21,6 +21,8 @@ struct CollateralInput {
 struct CollateralConfig {
     uint256     id;
     address     tokenAddress;
+    uint256     decimals;
+    uint256     scale;
     uint256     mode;
     address[]   oracleFeeds;
     uint256     LTV;
@@ -62,7 +64,7 @@ abstract contract CollateralManager is AccessManager {
     uint256 private lastCollateralId = 1;
 
     /// @dev Token address => collateral configuration
-    mapping(address token => CollateralConfig) internal collateralConfig;
+    mapping(address token => CollateralConfig) internal globalCollateralConfig;
 
     /// @dev List of all collateral tokens ever registered
     address[] internal globalCollateralSupported;
@@ -99,13 +101,16 @@ abstract contract CollateralManager is AccessManager {
      * - Newly added collateral receives a unique, non-zero ID
      * - Collateral is activated by default on update
      */
-    function updateCollateral(CollateralInput calldata updatedCol) external onlyTimeLock(){
-        require(i_allowedCollateralModes & updatedCol.mode != 0);
-        CollateralConfig storage c = collateralConfig[updatedCol.tokenAddress];
+    function updateGlobalCollateral(CollateralInput calldata updatedCol) external onlyTimeLock(){
+        require(i_allowedCollateralModes & updatedCol.mode != 0, "Invalid mode");
+        CollateralConfig storage c = globalCollateralConfig[updatedCol.tokenAddress];
         
         if (c.id == 0){
             c.id = lastCollateralId++;
             c.tokenAddress = updatedCol.tokenAddress;
+            uint8 decimals = updatedCol.tokenAddress == address(0) ? 18 : IERC20Metadata(updatedCol.tokenAddress).decimals();
+            c.decimals = decimals;
+            c.scale = 10 ** decimals;
             globalCollateralSupported.push(updatedCol.tokenAddress);
         }
         c.mode = updatedCol.mode | MODE_ACTIVE;
@@ -119,8 +124,8 @@ abstract contract CollateralManager is AccessManager {
      * @notice Removes collateral configuration entirely.
      * @dev Callable only through the timelock.
      */
-    function removeCollateral(address tokenAddress) external onlyTimeLock(){
-        delete collateralConfig[tokenAddress];
+    function removeGlobalCollateral(address tokenAddress) external onlyTimeLock(){
+        delete globalCollateralConfig[tokenAddress];
     }
 
 
@@ -128,15 +133,15 @@ abstract contract CollateralManager is AccessManager {
      * @notice Pauses a collateral asset without deleting configuration.
      * @dev Used for emergency risk mitigation.
      */
-    function pauseCollateral(address tokenAddress) external onlyTimeLock(){
-        collateralConfig[tokenAddress].mode &= ~MODE_ACTIVE;
+    function pauseGlobalCollateral(address tokenAddress) external onlyTimeLock(){
+        globalCollateralConfig[tokenAddress].mode &= ~MODE_ACTIVE;
     }
 
     /**
      * @notice Reactivates a previously paused collateral asset.
      */
-    function unpauseCollateral(address tokenAddress) external onlyTimeLock(){
-        collateralConfig[tokenAddress].mode |= MODE_ACTIVE;
+    function unpauseGlobalCollateral(address tokenAddress) external onlyTimeLock(){
+        globalCollateralConfig[tokenAddress].mode |= MODE_ACTIVE;
     }
 
 
@@ -145,15 +150,15 @@ abstract contract CollateralManager is AccessManager {
     /**
      * @dev Returns true if collateral is active and usable.
      */
-    function _isCollateralAllowed(address tokenAddress) internal view returns (bool){
-        return collateralConfig[tokenAddress].mode & MODE_ACTIVE != 0;
+    function _isGlobalCollateralAllowed(address tokenAddress) internal view returns (bool){
+        return globalCollateralConfig[tokenAddress].mode & MODE_ACTIVE != 0;
     }
 
     /**
      * @dev Returns the collateral ID for a token.
      */
-    function _getCollateralID(address tokenAddress) internal view returns (uint256){
-        return collateralConfig[tokenAddress].id;
+    function _getGlobalCollateralID(address tokenAddress) internal view returns (uint256){
+        return globalCollateralConfig[tokenAddress].id;
     }
 
 }

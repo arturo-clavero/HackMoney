@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../../src/Core/shared/AppManager.sol";
 import "../../src/Core/shared/AccessManager.sol";
-import "./helpers/CoreLib.t.sol";
+import "../utils/CoreLib.t.sol";
 
 contract AppManagerHarness is AppManager {
     address public owner;
@@ -35,7 +35,7 @@ contract AppManagerHarness is AppManager {
         return _getStablecoinID(token);
     }
 
-    function exposed_getAppConfig(uint256 id) external returns (AppConfig memory){
+    function exposed_getAppConfig(uint256 id) external view returns (AppConfig memory){
         return _getAppConfig(id);
     }
 
@@ -54,21 +54,10 @@ contract AppManagerTest is Test {
     address alien = address(0xD);
 
     // Collateral
-    address col1 = address(0x101);
-    address col2 = address(0x102);
-    address col3 = address(0x103);
+    address col1;
+    address col2;
+    address col3;
     address notSupportedCol = address(0x104);
-
-    function _setupManager() internal {
-        manager = new AppManagerHarness(timelock);
-        (user3, user3PK) = makeAddrAndKey("alice");
-
-        vm.startPrank(timelock);
-        manager.updateCollateral(Core._collateralInput(col1));
-        manager.updateCollateral(Core._collateralInput(col2));
-        manager.updateCollateral(Core._collateralInput(col3));
-        vm.stopPrank();
-    }
 
     function _defaultUsers() internal view returns (address[] memory users) {
         users = new address[](3);
@@ -84,14 +73,9 @@ contract AppManagerTest is Test {
     }
 
     function _defaultInput() internal view returns (AppInput memory input) {
-        input = AppInput({
-            name: "TestCoin",
-            symbol: "TC",
-            appActions: Core.defaultAppAction,
-            userActions: Core.defaultUserAction,
-            users: _defaultUsers(),
-            tokens: _defaultTokens()
-        });
+        input = Core._newAppInstanceInput();
+        input.tokens = _defaultTokens();
+        input.users = _defaultUsers();
     }
 
     function _singleUser(address user) internal pure returns (address[] memory users) {
@@ -104,7 +88,18 @@ contract AppManagerTest is Test {
     }
 
     function setUp() public {
-        _setupManager();
+        manager = new AppManagerHarness(timelock);
+        (user3, user3PK) = makeAddrAndKey("alice");
+
+        col1 = Core._newToken();
+        col2 = Core._newToken();
+        col3 = Core._newToken();
+
+        vm.startPrank(timelock);
+        manager.updateGlobalCollateral(Core._collateralInput(col1, Core.COL_MODE_STABLE));
+        manager.updateGlobalCollateral(Core._collateralInput(col2, Core.COL_MODE_STABLE));
+        manager.updateGlobalCollateral(Core._collateralInput(col3, Core.COL_MODE_STABLE));
+        vm.stopPrank();
     }
 
     // newInstance
@@ -203,13 +198,13 @@ contract AppManagerTest is Test {
         manager.updateUserList(1, _singleUser(user2), _emptyAddr());
     }
 
-    // addCollateral
+    // addAppCollateral
     function testAddCollateral_Success() public {
         vm.prank(owner);
         manager.newInstance(_defaultInput());
 
         vm.prank(owner);
-        manager.addCollateral(1, col3);
+        manager.addAppCollateral(1, col3);
         assertTrue(manager.exposed_isAllowed(1, col3));
     }
 
@@ -219,7 +214,7 @@ contract AppManagerTest is Test {
 
         vm.prank(user1);
         vm.expectRevert();
-        manager.addCollateral(1, col3);
+        manager.addAppCollateral(1, col3);
     }
 
     function testAddCollateral_Revert_Unsupported() public {
@@ -228,20 +223,20 @@ contract AppManagerTest is Test {
 
         vm.prank(owner);
         vm.expectRevert("Collateral not supported by our Protocol");
-        manager.addCollateral(1, address(0xdead));
+        manager.addAppCollateral(1, address(0xdead));
     }
 
-    // removeCollateral
-    function testRemoveCollateral_Success() public {
+    // removeAppCollateral
+    function testremoveGlobalCollateral_Success() public {
         vm.prank(owner);
         manager.newInstance(_defaultInput());
 
         vm.prank(owner);
-        manager.removeCollateral(1, col2);
+        manager.removeAppCollateral(1, col2);
         assertFalse(manager.exposed_isAllowed(1, col2));
     }
 
-    function testRemoveCollateral_Revert_LastCollateral() public {
+    function testremoveGlobalCollateral_Revert_LastCollateral() public {
         AppInput memory input = _defaultInput();
         input.tokens = new address[](1); 
         input.tokens[0] = col1;
@@ -251,7 +246,7 @@ contract AppManagerTest is Test {
 
         vm.prank(owner);
         vm.expectRevert("At least One Collateral supported");
-        manager.removeCollateral(1, col1);
+        manager.removeAppCollateral(1, col1);
     }
 
     // _getStablecoinID
@@ -282,7 +277,7 @@ contract AppManagerTest is Test {
 
         // transfer from requires permit
         uint256 deadline = block.timestamp + 1 days;
-        bytes32 digest = Core.signPermit(coin, user3, user3PK, address(manager), 5, deadline);
+        bytes32 digest = Core.getDigest(coin, user3, address(manager), 5, deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(user3PK, digest);
         IPrivateCoin(coin).permit(user3, address(manager), 5, deadline, v, r, s);
 
@@ -295,4 +290,56 @@ contract AppManagerTest is Test {
         assertEq(IPrivateCoin(coin).balanceOf(user2), 0);
         vm.stopPrank();
     }
+
+///// getAppTotalSupply Tests
+
+    function testGetAppTotalSupply_InitialZero() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        uint256 supply = IERC20(manager.getAppCoin(1)).totalSupply();
+        assertEq(supply, 0, "Initial supply should be 0");
+    }
+
+    function testGetAppTotalSupply_AfterMint() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        vm.prank(owner);
+        manager.exposed_mint(1, user1, 100);
+
+        uint256 supply = IERC20(manager.getAppCoin(1)).totalSupply();
+        assertEq(supply, 100, "Supply should match minted amount");
+    }
+
+    function testGetAppTotalSupply_AfterMintAndBurn() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        // mint
+        vm.prank(owner);
+        manager.exposed_mint(1, user1, 100);
+
+        // burn
+        vm.prank(user1);
+        manager.exposed_burn(1, 40);
+
+        uint256 supply = IERC20(manager.getAppCoin(1)).totalSupply();
+        assertEq(supply, 60, "Supply should account for burned tokens");
+    }
+
+    function testGetAppTotalSupply_MultipleUsers() public {
+        vm.prank(owner);
+        manager.newInstance(_defaultInput());
+
+        // mint to multiple users
+        vm.prank(owner);
+        manager.exposed_mint(1, user1, 50);
+        vm.prank(owner);
+        manager.exposed_mint(1, user2, 70);
+
+        uint256 supply = IERC20(manager.getAppCoin(1)).totalSupply();
+        assertEq(supply, 120, "Supply should sum across all users");
+    }
+
 }

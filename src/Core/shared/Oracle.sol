@@ -97,7 +97,7 @@ abstract contract Oracle is CollateralManager {
      * @return feed The Chainlink aggregator address
      */
     function _getPrimaryFeed(address token) internal view returns (address feed) {
-        address[] storage feeds = collateralConfig[token].oracleFeeds;
+        address[] storage feeds = globalCollateralConfig[token].oracleFeeds;
         if (feeds.length == 0) {
             return address(0);
         }

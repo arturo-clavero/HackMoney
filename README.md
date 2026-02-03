@@ -13,7 +13,8 @@
  * /Timelock | --> X
 
  # Possible added features
- * Cross chain ((Li.fi for UX) Smart Contracts for the actual PrivateCoin for each peg ... )
+ * Oracle Fallback -> If chainlink is invalid check a second oracle... 
+ * Cross chain ((Li.fi for UX) Smart Contracts for the actual PrivateCoin... )
  * Modifiable hooks for transfers (We can offer certain hooks apps can choose to use them)
 
 ## Architecture
