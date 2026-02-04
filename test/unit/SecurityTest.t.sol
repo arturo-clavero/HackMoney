@@ -7,6 +7,7 @@ import "../../src/Core/shared/Security.sol";
 import "../../src/Core/shared/AccessManager.sol";
 
 contract notTrueSecurity is Security {
+    
     constructor(
         address _owner,
         address _timelock,
@@ -28,8 +29,10 @@ contract notTrueSecurity is Security {
 
 
 contract SecurityTest is Test {
+
     notTrueSecurity security;
 
+    
     address owner = address(0xA11CE);
     address timelock = address(0xBEEF);
     address user = address(0xCAFE);
