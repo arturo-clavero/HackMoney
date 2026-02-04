@@ -81,6 +81,8 @@ abstract contract BaseEconomicTest is Test {
 
     function setUpBase(uint256[] memory modes, uint8[] memory decimals, uint256 _totalUsers, uint256 _totalApps) internal {
         peg = _deployPeg();
+        vm.prank(owner);
+        peg.finishSetUp();
         _updateBase(modes, decimals, _totalUsers, _totalApps);
     }
 

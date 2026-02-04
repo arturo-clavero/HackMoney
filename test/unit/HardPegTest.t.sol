@@ -31,6 +31,7 @@ contract HardPegUnitTest is BaseEconomicTest {
         }
 
         setUpBase(modes, decimals, _totalUsers, _totalApps);
+
         ID = appIDs[0];
         alice = users[0];
         bob = users[1];

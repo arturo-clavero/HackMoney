@@ -14,6 +14,7 @@ import {Error} from "../../utils/ErrorLib.sol";
  * Role management is intentionally centralized:
  * - Only the OWNER can grant or revoke roles.
  * - Timelock execution is enforced for sensitive global configuration updates.
+ * - isSetUp flag: ensures protocol configuration phase is protected
  *
  * This contract is intended to be inherited by core protocol modules.
  */
@@ -65,10 +66,13 @@ abstract contract AccessManager {
     uint256 constant public GOVERNOR = 1 << 3;
 
 
-    //can only be set to true
-    //while false timelock only functions can be acessed by owner
-    //this is to "set up" the protocol 
-    //while in set up mode, app instances can not be created... 
+    /**
+     * @dev During initial deployment/setup:
+     * - isSetUp = false
+     * - Only OWNER can call "timelock" functions
+     * - App instances cannot yet be created
+     * Once setup is finished, `finishSetUp` flips isSetUp = true.
+     */
     bool private isSetUp = false;
     
     /// @dev Immutable protocol owner
@@ -152,7 +156,8 @@ abstract contract AccessManager {
         roles[user] &= ~role;
     }
 
-    function finishSetUp() public onlyOwner {
+    /// @notice Marks protocol as fully configured; after this only timelock may call certain functions
+    function finishSetUp() external onlyOwner {
         isSetUp = true;
     }
 }

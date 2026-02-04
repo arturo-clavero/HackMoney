@@ -9,17 +9,11 @@ contract AccessHarness is AccessManager {
         AccessManager(_owner, _timelock)
     {}
 
-    function onlyOwnerFn() external onlyOwner {
-        // no-op
-    }
+    function onlyOwnerFn() external onlyOwner {}
+    function onlyTimelockFn() external onlyTimeLock {}
+    function onlyRoleFn(uint256 role) external onlyRole(role) {}
+    function afterSetupFn() external onlyAfterSetUp {}
 
-    function onlyTimelockFn() external onlyTimeLock {
-        // no-op
-    }
-
-    function onlyRoleFn(uint256 role) external onlyRole(role) {
-        // no-op
-    }
 }
 
 contract AccessTest is Test {
@@ -90,18 +84,33 @@ contract AccessTest is Test {
         access.onlyRoleFn(COLLATERAL_MANAGER);
     }
 
-
-    function testOnlyTimelock() public {
+    function testOnlyTimelockDuringAndAfterSetup() public {
+        vm.prank(owner);
+        access.onlyTimelockFn();
         vm.prank(timelock);
+        vm.expectRevert();
         access.onlyTimelockFn();
 
-        vm.prank(user);
+        vm.prank(owner);
+        access.finishSetUp();
+
+        vm.prank(owner);
         vm.expectRevert();
+        access.onlyTimelockFn();
+        vm.prank(timelock);
         access.onlyTimelockFn();
     }
 
+    function testOnlyAfterSetUp() public {
+        vm.prank(owner);
+        vm.expectRevert();
+        access.afterSetupFn();
 
+        vm.prank(owner);
+        access.finishSetUp();
 
+        vm.prank(owner);
+        access.afterSetupFn();
+    }
 
 }
-
