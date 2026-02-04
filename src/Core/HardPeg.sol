@@ -11,70 +11,76 @@ import {RiskEngine} from "./../utils/RiskEngineLib.sol";
 import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
 
-/**
- * @notice Depending on the collateral the stablecoin will be a different "peg"
- * @dev Each peg system may or may not override certain functions in Engine to customize redemption liquidation and other actions
- *      Each peg system will specify different positions...
- */
+import {Error} from "../utils/ErrorLib.sol";
 
 
 /**
- * @notice Handles Stable Collateral
+ * @title HardPeg
+ * @notice Stablecoin system backed by a basket of supported collateral tokens.
+ * @dev
+ * Each HardPeg instance:
+ *  - Tracks collateral in "value units" for internal accounting.
+ *  - Mints a 1:1 ratio of app coins against collateral.
+ *  - Supports redemption and collateral withdrawal in pro-rata fashion.
+ *  - No liquidations or price oracles are used in this implementation.
  */
- //No Oracle...
-
 contract HardPeg is AppManager, Security {
 
     using SafeERC20 for IERC20;
     using RiskEngine for address;
 
-    uint256 private constant WAD = 1e9;
+    /// @notice Internal scaling factor for value-to-raw conversions
     uint256 private constant DEFAULT_COIN_SCALE = 1e18;
 
-    //value amount
+    /// @notice Total value of all collateral across all apps (in "value units")
     uint256 private totalPool;
-    //value amount
+
+    /// @notice Total supply of all app stablecoins (in "value units")
     uint256 private totalSupply;                                     
 
-
+    /// @notice Collateral type => total value amount
     mapping(address colType => uint256 valueAmount) private globalPool; 
+    
+    /// @notice App ID => user address => value amount deposited
     mapping (uint256 id =>
         mapping(address user => uint256 valueAmount)) private vault; 
         
-
- //vault -> what tokens?
- //LOOP ITEARTIONS THROUGH ALL SUPPORTED COLLATERAL FOR THE APP
-
+    /**
+     * @notice Constructor
+     * @param owner Protocol owner address
+     * @param timelock Protocol timelock address
+     */
     constructor(uint256 globalDebtcap, uint256 mintCapPerTx, address owner, address timelock)
     CollateralManager(0)
     Security(globalDebtcap, mintCapPerTx, owner, timelock)
     {}
 
-    //should receive token / eth20 
-    //increase vault amount by total deposit amount
-    //increase global collateral by token... 
-    function deposit(uint256 id, address token, uint256 rawAmount) external payable {
-        require(_isAppCollateralAllowed(id, token), "invalid collateral");
-        if (token == address(0)) {
-            // ETH deposit 
-            require(msg.value != 0, "Invalid amount");
-            rawAmount = msg.value;
-        } else { 
-            //ERC20 deposit
-            require(msg.value == 0, "Invalid amount");
-            require(rawAmount != 0, "Invalid amount");
-            IERC20(token).safeTransferFrom(msg.sender, address(this), rawAmount);
-        }
+    /**
+     * @notice Deposit collateral into the app
+     * @dev Only supported collateral is accepted. `rawAmount` is in token units.
+     * @param id App ID
+     * @param token Collateral token address
+     * @param rawAmount Amount of collateral tokens to deposit
+     */
+    function deposit(uint256 id, address token, uint256 rawAmount) external {
+        if (!_isAppCollateralAllowed(id, token))
+            revert Error.CollateralNotSupportedByApp();
+        if (rawAmount == 0)
+            revert Error.InvalidAmount();
+        IERC20(token).safeTransferFrom(msg.sender, address(this), rawAmount);
         uint256 valueAmount = rawAmount / globalCollateralConfig[token].scale;
         vault[id][msg.sender] += valueAmount;
         globalPool[token] += valueAmount;
         totalPool += valueAmount;
     }
 
-    //can mint amount or max uint256 takes max mint possible
-    //mints 1:1 ratio of collateral
-    //reducess collateral by 1:1 ratio
-    //value or raw?
+    /**
+     * @notice Mint app stablecoins
+     * @dev Mints at 1:1 ratio of `valueAmount` against available collateral.
+     * @param id App ID
+     * @param to Recipient address
+     * @param rawAmount Amount of stablecoins to mint (in raw units). Use `type(uint256).max` to mint max available.
+     */
     function mint(uint256 id, address to, uint256 rawAmount) public {
         uint256 maxValue = vault[id][msg.sender];
         uint256 valueAmount;
@@ -88,19 +94,26 @@ contract HardPeg is AppManager, Security {
         _mintAppToken(id, to, rawAmount);
     }
 
-    //burns stbc give collateral basket back 1:1
+    /**
+     * @notice Redeem app stablecoins for underlying collateral
+     * @param token App stablecoin token address
+     * @param rawAmount Amount of stablecoins to redeem (in raw units)
+     */
     function redeam(address token, uint256 rawAmount) external {
         uint256 id = _getStablecoinID(token);
-        require(rawAmount != 0, "Invalid amount");
+        if (rawAmount == 0)
+            revert Error.InvalidAmount();
         uint256 valueAmount = rawAmount / DEFAULT_COIN_SCALE;
         totalSupply -= valueAmount;
         _burnAppToken(id, rawAmount);
         _sendCollateralBasket(valueAmount);
     }
 
-    //reduces collateral basket...
-    //reduces user "free" collateral
-    //sends back basket 1:1 amount
+    /**
+     * @notice Withdraw collateral directly from the vault
+     * @param id App ID
+     * @param valueAmount Amount of value units to withdraw. Use `type(uint256).max` to withdraw all available.
+     */
     function withdrawCollateral(uint256 id, uint256 valueAmount) external {
         uint256 maxValue = vault[id][msg.sender];
         if (valueAmount == type(uint256).max)
@@ -109,28 +122,32 @@ contract HardPeg is AppManager, Security {
         _sendCollateralBasket(valueAmount);
     }
 
-//GETTERS FOR TESTING
+    /// @notice Returns total value of all collateral across apps
     function getTotalPool() external view returns (uint256){
         return totalPool;
     }
 
+    /// @notice Returns total value of a specific collateral token
     function getGlobalPool(address token) external view returns (uint256){
         return globalPool[token];
     }
 
+    /// @notice Returns total supply of stablecoins across apps
     function getTotalSupply() external view returns (uint256){
         return totalSupply;
     }
 
-
+    /// @notice Returns the vault balance of a user in value units
     function getVaultBalance(uint256 id, address user) external view returns (uint256) {
         return (vault[id][user]);
     }
 
-    //user can not pick which collateral 
-    //choose worse collateral? Oracle check ->  expensive but more secure
-    //pro rata instead
-    //leaves minimal dust in the pool ... 
+    /**
+     * @notice Internal helper to send pro-rata collateral basket
+     * @dev Distributes `valueAmount` proportionally across all supported collateral tokens.
+     *      Leaves minimal dust in the pool due to integer division rounding.
+     * @param valueAmount Amount in value units to send
+     */
     function _sendCollateralBasket(uint256 valueAmount) internal {
         uint256 _totalPool = totalPool;
         uint256 _totalSent;
@@ -144,11 +161,7 @@ contract HardPeg is AppManager, Security {
             uint256 proRataRaw = proRataValue * globalCollateralConfig[token].scale;
             IERC20(token).safeTransfer(msg.sender, proRataRaw);
         }
-        //left over dust from integer division roudnings
-        // uint256 dustLeftinThePool = valueAmount - totalSpent;
         totalPool -= _totalSent;
-
     }
-    //no liquidations... 
-    // function liquidate() external {}
+
 }

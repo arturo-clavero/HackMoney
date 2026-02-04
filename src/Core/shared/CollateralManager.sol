@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import {AccessManager} from "./AccessManager.sol";
 import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
+import {Error} from "../../utils/ErrorLib.sol";
+
 /**
  * @notice Input structure used when updating collateral configuration.
  */
@@ -102,7 +104,8 @@ abstract contract CollateralManager is AccessManager {
      * - Collateral is activated by default on update
      */
     function updateGlobalCollateral(CollateralInput calldata updatedCol) external onlyTimeLock(){
-        require(i_allowedCollateralModes & updatedCol.mode != 0, "Invalid mode");
+        if (i_allowedCollateralModes & updatedCol.mode == 0)
+            revert Error.InvalidMode();
         CollateralConfig storage c = globalCollateralConfig[updatedCol.tokenAddress];
         
         if (c.id == 0){

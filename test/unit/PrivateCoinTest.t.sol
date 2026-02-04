@@ -155,7 +155,7 @@ contract PrivateCoinTest is Test {
                     c.transfer(user2, 1);
                     assertEq(c.balanceOf(user2), 1);
                 } else {
-                    vm.expectRevert("Invalid permission");
+                    vm.expectRevert(Error.InvalidPermission.selector);
                     c.transfer(user2, 1);
                 }
                 vm.stopPrank();
@@ -184,7 +184,7 @@ contract PrivateCoinTest is Test {
                     c.transferFrom(user1, user2, 1);
                     assertEq(c.balanceOf(user2), 1);
                 } else {
-                    vm.expectRevert("Invalid permission");
+                    vm.expectRevert(Error.InvalidPermission.selector);
                     c.transferFrom(user1, user2, 1);
                 }
             }
@@ -227,6 +227,8 @@ contract PrivateCoinTest is Test {
         }
     }
 
+//engine-only :
+
     function testBurn_RevertsIfNotEngine() public {
         PrivateCoin c = setupCoin(Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST, Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST);
         grantUser(c, user1);
@@ -234,6 +236,202 @@ contract PrivateCoinTest is Test {
         vm.prank(user1);
         vm.expectRevert();
         c.burn(user1, 1);
+    }
+
+    function testMint_RevertsIfNotEngine() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD,
+            Actions.MINT | Actions.HOLD
+        );
+        grantUser(c, user1);
+
+        vm.prank(user1);
+        vm.expectRevert(Error.InvalidAccess.selector);
+        c.mint(user1, user1, 1);
+    }
+
+    function testUpdateUserList_RevertsIfNotEngine() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD,
+            Actions.MINT | Actions.HOLD
+        );
+
+        address[] memory users = new address[](1);
+        users[0] = user1;
+
+        vm.prank(user1);
+        vm.expectRevert(Error.InvalidAccess.selector);
+        c.updateUserList(users, new address[](0));
+    }
+
+//batch overflow :
+    function testConstructor_InitialUsersOverflow_EmitsEvent() public {
+        uint256 len = Actions.MAX_ARRAY_LEN + 1;
+        address[] memory users = new address[](len);
+
+        for (uint256 i; i < len; i++) {
+            users[i] = address(uint160(9000 + i));
+        }
+
+        vm.expectEmit(true, false, false, true);
+        emit PrivateCoin.NeedToSetMorePermissions(users, new address[](0));
+
+        vm.prank(engine);
+        new PrivateCoin(
+            "TestCoin",
+            "TC",
+            Actions.MINT | Actions.HOLD,
+            Actions.MINT | Actions.HOLD,
+            users,
+            app
+        );
+    }
+
+    function testGrantPermissions_EmitsNeedToSetMorePermissions() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD,
+            Actions.MINT | Actions.HOLD
+        );
+
+        uint256 len = Actions.MAX_ARRAY_LEN + 5;
+        address[] memory users = new address[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            users[i] = address(uint160(i + 100));
+        }
+
+        vm.expectEmit(true, false, false, true);
+        emit PrivateCoin.NeedToSetMorePermissions(users, new address[](0));
+
+        vm.prank(engine);
+        c.updateUserList(users, new address[](0));
+    }
+
+    function testRevokePermissions_EmitsNeedToSetMorePermissions() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD,
+            Actions.MINT | Actions.HOLD
+        );
+
+        uint256 len = Actions.MAX_ARRAY_LEN + 3;
+        address[] memory users = new address[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            users[i] = address(uint160(i + 200));
+        }
+
+        vm.prank(engine);
+        c.updateUserList(users, new address[](0));
+
+        vm.expectEmit(true, false, false, true);
+        emit PrivateCoin.NeedToSetMorePermissions(new address[](0), users);
+
+        vm.prank(engine);
+        c.updateUserList(new address[](0), users);
+    }
+
+    function testUpdateUserList_BothOverflow() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD,
+            Actions.MINT | Actions.HOLD
+        );
+
+        uint256 len = Actions.MAX_ARRAY_LEN + 1;
+
+        address[] memory add = new address[](len);
+        address[] memory remove = new address[](len);
+
+        for (uint256 i; i < len; i++) {
+            add[i] = address(uint160(1000 + i));
+            remove[i] = address(uint160(2000 + i));
+        }
+
+        vm.expectEmit(true, true, false, true);
+        emit PrivateCoin.NeedToSetMorePermissions(add, remove);
+
+        vm.prank(engine);
+        c.updateUserList(add, remove);
+    }
+
+
+//transfer
+
+    function testTransferFrom_WithAllowance_AndPermission() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST,
+            Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST
+        );
+
+        grantUser(c, user1);
+        grantUser(c, user2);
+
+        vm.prank(engine);
+        c.mint(app, user1, 2);
+
+        vm.prank(user1);
+        c.approve(spender, 1);
+
+        vm.prank(spender);
+        c.transferFrom(user1, user2, 1);
+
+        assertEq(c.balanceOf(user2), 1);
+    }
+
+
+    function testTransferFrom_RevertsIfDestinationNotAllowed() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD,
+            Actions.MINT | Actions.HOLD
+        );
+
+        grantUser(c, user1);
+        grantUser(c, user2);
+
+        vm.prank(engine);
+        c.mint(app, user1, 1);
+
+        vm.prank(spender);
+        vm.expectRevert(Error.InvalidPermission.selector);
+        c.transferFrom(user1, user2, 1);
+    }
+
+    function testRevokedUserCannotReceiveTransfer() public {
+        PrivateCoin c = setupCoin(
+            Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST,
+            Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST
+        );
+
+        grantUser(c, user1);
+        grantUser(c, user2);
+
+        vm.prank(engine);
+        c.mint(app, user1, 2);
+
+        // revoke TRANSFER_DEST from user2
+        address[] memory revoke = new address[](1);
+        revoke[0] = user2;
+
+        vm.prank(engine);
+        c.updateUserList(new address[](0), revoke);
+
+        vm.prank(user1);
+        vm.expectRevert(Error.InvalidPermission.selector);
+        c.transfer(user2, 1);
+    }
+
+//mint
+
+    function testMint_RevertsIfFromLacksMintPermission() public {
+        PrivateCoin c = setupCoin(
+            Actions.HOLD | Actions.MINT,
+            Actions.HOLD
+        );
+
+        grantUser(c, user1);
+
+        vm.prank(engine);
+        vm.expectRevert(Error.InvalidPermission.selector);
+        c.mint(user1, user1, 1);
     }
 
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {Error} from "../../utils/ErrorLib.sol";
 
 /**
  * @title AccessManager
@@ -86,7 +87,8 @@ abstract contract AccessManager {
      * @dev Restricts access to accounts holding a specific role.
      */
     modifier onlyRole(uint256 role){
-        require(roles[msg.sender] & role != 0);
+        if(roles[msg.sender] & role == 0)
+            revert Error.InvalidAccess();
         _;
     }
 
@@ -94,7 +96,8 @@ abstract contract AccessManager {
      * @dev Restricts access to the protocol owner.
      */
     modifier onlyOwner(){
-        require(msg.sender == owner);
+        if(msg.sender != owner)
+            revert Error.InvalidAccess();
         _;
     }
 
@@ -104,7 +107,8 @@ abstract contract AccessManager {
      * Used for functions that modify global or high-risk parameters.
      */
     modifier onlyTimeLock() {
-        require(msg.sender == timelock);
+        if (msg.sender != timelock)
+            revert Error.InvalidAccess();
         _;
     }
 
