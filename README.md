@@ -2,11 +2,11 @@
 > * /Core/shared/AccessManager     |--> DONE
 > * /Core/shared/CollateralManager |--> DONE
 > * /Core/shared/AppManager        |--> DONE
-> * /Core/shared/Security|--> IN PROGRESS
+> * /Core/shared/Security|--> DONE
 > * /Core/shared/Oracle |--> DONE
 > * /Core/shared/Engine |--> [removed]
 > * /Core/HardPeg | --> IN PROGRESS
-* /Core/MediumPeg | --> X
+* /Core/MediumPeg | --> IN PROGRESS
 * /Core/SoftPeg | --> X
 > * /mocks/MockOracle |--> IN PROGRESS
 > * /PrivateCoin | --> DONE
