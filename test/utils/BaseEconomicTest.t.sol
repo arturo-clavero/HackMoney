@@ -144,11 +144,6 @@ abstract contract BaseEconomicTest is Test {
         vm.stopPrank();
     }
 
-
-    /*//////////////////////////////////////////////////////////////
-                        ECONOMIC ASSERTIONS
-    //////////////////////////////////////////////////////////////*/
-
     function _assertConservation() internal view {
         uint256 sum;
         for (uint256 i = 0; i < totalTokens; i++){
@@ -158,7 +153,8 @@ abstract contract BaseEconomicTest is Test {
 
         sum = 0;
          for (uint256 i = 0; i < totalApps; i++){
-            sum += IERC20(peg.getAppCoin(1)).totalSupply();
+            address coin = peg.getAppCoin(appIDs[i]);
+            sum += IERC20(coin).totalSupply();
         }
         assertEq(sum, peg.getTotalSupply(), "supply not conserved");
 

@@ -202,6 +202,7 @@ abstract contract AppManager is CollateralManager {
      * @notice Returns app's private coin interface, for testing
      */
     function getAppCoin(uint256 id) external view returns (address){
+        require (id < latestId);
         return appConfig[id].coin;
     }
 }
