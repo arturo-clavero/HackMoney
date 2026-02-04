@@ -63,6 +63,13 @@ abstract contract AccessManager {
      * Intended for risk mitigation and incident response.
      */
     uint256 constant public GOVERNOR = 1 << 3;
+
+
+    //can only be set to true
+    //while false timelock only functions can be acessed by owner
+    //this is to "set up" the protocol 
+    //while in set up mode, app instances can not be created... 
+    bool private isSetUp = false;
     
     /// @dev Immutable protocol owner
     address immutable private owner;
@@ -77,7 +84,7 @@ abstract contract AccessManager {
      * @param _owner Protocol owner (expected to be multisig)
      * @param _timelock Timelock contract used for queued execution
      */    
-     constructor(address _owner, address _timelock) {
+    constructor(address _owner, address _timelock) {
         owner = _owner;
         timelock = _timelock;
         roles[_owner] |= OWNER;
@@ -107,7 +114,15 @@ abstract contract AccessManager {
      * Used for functions that modify global or high-risk parameters.
      */
     modifier onlyTimeLock() {
-        if (msg.sender != timelock)
+        if (isSetUp && msg.sender != timelock)
+            revert Error.InvalidAccess();
+        else if (!isSetUp && msg.sender != owner)
+            revert Error.InvalidAccess();
+        _;
+    }
+
+    modifier onlyAfterSetUp() {
+        if (!isSetUp)
             revert Error.InvalidAccess();
         _;
     }
@@ -135,5 +150,9 @@ abstract contract AccessManager {
      */
     function revokeRole(address user, uint256 role) external onlyOwner {
         roles[user] &= ~role;
+    }
+
+    function finishSetUp() public onlyOwner {
+        isSetUp = true;
     }
 }

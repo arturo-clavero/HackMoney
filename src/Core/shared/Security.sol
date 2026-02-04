@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {AccessManager} from "./AccessManager.sol";
-// import {Timelock} from "../../Y_Timelock.sol";
 
 /**
  * @title pausing & governance control contract
@@ -23,8 +22,14 @@ import {AccessManager} from "./AccessManager.sol";
  *      - Governance (owner or timelock) manages the flags and caps via the provided external functions.
  */
 
-abstract contract Security is AccessManager{
+ //Check if current mint by user is safe...
+ //     - mint paused
+ //     - global debt cap = check + update
+ //     - mint cap per tx/ per block = check + update
 
+//Deliverables : function is mint allowed for this user right now ? 
+
+abstract contract Security is AccessManager{
     bool private mintPaused;
     bool private withdrawPaused;
     uint256 private globalDebtCap;
@@ -105,7 +110,4 @@ abstract contract Security is AccessManager{
         mintCapPerTransaction = newMintCapPerTransaction;
         // emit mintCapPerTransactionUpdated(oldCap, newMintCapPerTransaction);
     }
-    // function _isOwnerMultiSig() internal {
-        
-    // }
 }

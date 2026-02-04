@@ -73,7 +73,7 @@ abstract contract AppManager is CollateralManager {
      *
      * Collateral tokens must already be supported by the protocol.
      */
-    function newInstance(AppInput calldata config) external returns (uint256 id) {
+    function newInstance(AppInput calldata config) external onlyAfterSetUp() returns (uint256 id)  {
         id = latestId;
         latestId = id + 1;
 
