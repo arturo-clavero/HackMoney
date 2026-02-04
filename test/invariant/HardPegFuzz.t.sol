@@ -104,7 +104,14 @@ contract HardPegFuzzTest is FuzzEconomicTest {
     function testFuzzEconomics_Value() public {
         //100 = n of loops (ticks)
         _updateSetUp(5, 2, 2);
-        uint256 n = 1;
+        uint256 n = 10;
         runFuzzOracleValue(n);
+    }
+
+    function testFuzzEconomics_Agents() public {
+        //100 = n of loops (ticks)
+        _updateSetUp(5, 2, 2);
+        uint256 n = 10;
+        runFuzzAgents(n);
     }
 }

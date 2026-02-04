@@ -5,17 +5,25 @@
 > * /Core/shared/Security|--> DONE
 > * /Core/shared/Oracle |--> DONE
 > * /Core/shared/Engine |--> [removed]
-> * /Core/HardPeg | --> IN PROGRESS
+> * /Core/HardPeg | --> DONE
 * /Core/MediumPeg | --> IN PROGRESS
-* /Core/SoftPeg | --> X
-> * /mocks/MockOracle |--> IN PROGRESS
+* /Core/SoftPeg | --> IN PROGRESS
+> * /mocks/MockOracle |--> DONE
+> * /mocks/MockRandomOracle |--> DONE
 > * /PrivateCoin | --> DONE
- * /Timelock | --> X
+ * /Timelock | --> IN PROGRESS
+  * /Script/DeployHardPeg | --> IN PROGRESS
+ * /Script/ScenarioAttacks ... | --> X
 
  # Possible added features
+ * Scenario attack scripts :
+-oracle manipulation → mint → redeem → dump
+-sandwich deposit/withdraw ordering
+-griefing transfer locks
+-precision drain over many rounds
+
  * Oracle Fallback -> If chainlink is invalid check a second oracle... 
  * Cross chain ((Li.fi for UX) Smart Contracts for the actual PrivateCoin... )
- * Modifiable hooks for transfers (We can offer certain hooks apps can choose to use them)
 
 ## Architecture
 
