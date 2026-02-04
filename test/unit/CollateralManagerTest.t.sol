@@ -189,4 +189,18 @@ contract CollateralManagerTest is Test {
         cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
         vm.stopPrank();
     }
+
+    function testOwnerCanUpdateCollateral_PreSetup() public {
+        CollateralHarness cm = new CollateralHarness(owner, timelock, Core.PEG_HARD);
+
+        address tok = Core._newToken();
+
+        vm.prank(owner);
+        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+
+        CollateralConfig memory c = cm.getCollateral(tok);
+        assertEq(c.id, 1);
+        assertTrue(c.mode & Core.COL_MODE_ACTIVE != 0);
+    }
+
 }

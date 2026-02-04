@@ -44,8 +44,10 @@ struct CollateralConfig {
  * Collateral modes are expressed as bitflags, allowing a single asset to satisfy
  * multiple risk categories (e.g. stable + yield).
  *
- * All state-changing operations are restricted to the timelock to ensure
+ * After "set-up" all state-changing operations are restricted to the timelock to ensure
  * delayed execution and governance oversight.
+ * During "set-up" all state-changing operations are restricted to the owner, to ensure
+ * easy (non-delayed) configurations post-deployment.
  */
 abstract contract CollateralManager is AccessManager {
     /// @dev Collateral classification flags

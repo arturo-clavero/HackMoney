@@ -520,4 +520,14 @@ contract AppManagerTest is Test {
         assertEq(manager.exposed_getStablecoinID(coin2), id2);
     }
 
+    function testNewInstance_RevertBeforeSetup() public {
+        AppInput memory input = _defaultInput();
+
+        AppManagerHarness preSetupManager = new AppManagerHarness(timelock, owner);
+
+        vm.prank(owner);
+        vm.expectRevert(Error.InvalidAccess.selector);
+        preSetupManager.newInstance(input);
+    }
+
 }
