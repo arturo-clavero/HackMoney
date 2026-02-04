@@ -92,7 +92,7 @@ contract AccessTest is Test {
         access.onlyTimelockFn();
 
         vm.prank(owner);
-        access.finishSetUp();
+        access.finishSetUp(address(0));
 
         vm.prank(owner);
         vm.expectRevert();
@@ -107,10 +107,57 @@ contract AccessTest is Test {
         access.afterSetupFn();
 
         vm.prank(owner);
-        access.finishSetUp();
+        access.finishSetUp(address(0));
 
         vm.prank(owner);
         access.afterSetupFn();
+    }
+
+    function testFinishSetUpTransfersOwnership() public {
+        address newOwner = address(0x99);
+
+        vm.prank(owner);
+        access.finishSetUp(newOwner);
+
+        vm.prank(owner);
+        vm.expectRevert();
+        access.onlyOwnerFn();
+
+        vm.prank(newOwner);
+        access.onlyOwnerFn();
+    }
+
+    function testOnlyTimeLockModifierPhaseSensitive() public {
+        vm.prank(owner);
+        access.onlyTimelockFn();
+
+        vm.prank(timelock);
+        vm.expectRevert();
+        access.onlyTimelockFn();
+
+        vm.prank(owner);
+        access.finishSetUp(address(0));
+
+        vm.prank(owner);
+        vm.expectRevert();
+        access.onlyTimelockFn();
+
+        vm.prank(timelock);
+        access.onlyTimelockFn();
+    }
+
+    function testFinishSetUpOnlyOwner() public {
+        vm.prank(user);
+        vm.expectRevert();
+        access.finishSetUp(address(0));
+    }
+
+    function testFinishSetUpWithZeroAddressKeepsOwner() public {
+        vm.prank(owner);
+        access.finishSetUp(address(0));
+
+        vm.prank(owner);
+        access.onlyOwnerFn();
     }
 
 }

@@ -75,7 +75,7 @@ contract AppManagerTest is Test {
         manager.updateGlobalCollateral(Core._collateralInput(col1, Core.COL_MODE_STABLE));
         manager.updateGlobalCollateral(Core._collateralInput(col2, Core.COL_MODE_STABLE));
         manager.updateGlobalCollateral(Core._collateralInput(col3, Core.COL_MODE_STABLE));
-        manager.finishSetUp();
+        manager.finishSetUp(address(0));
         vm.stopPrank();
     }
 

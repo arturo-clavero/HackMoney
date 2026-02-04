@@ -35,7 +35,7 @@ abstract contract BaseEconomicTest is Test {
 
     // child test decides WHICH peg
     function _deployPeg() internal virtual returns (IPeg){
-        HardPeg hard = new HardPeg(globalDebtcap, mintCapPerTx, owner, timelock);
+        HardPeg hard = new HardPeg(owner, timelock, globalDebtcap, mintCapPerTx);
         return IPeg(address(hard));
     }
 
@@ -82,7 +82,7 @@ abstract contract BaseEconomicTest is Test {
     function setUpBase(uint256[] memory modes, uint8[] memory decimals, uint256 _totalUsers, uint256 _totalApps) internal {
         peg = _deployPeg();
         vm.prank(owner);
-        peg.finishSetUp();
+        peg.finishSetUp(address(0));
         _updateBase(modes, decimals, _totalUsers, _totalApps);
     }
 

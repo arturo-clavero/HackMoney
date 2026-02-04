@@ -67,16 +67,15 @@ abstract contract AccessManager {
 
 
     /**
-     * @dev During initial deployment/setup:
-     * - isSetUp = false
-     * - Only OWNER can call "timelock" functions
-     * - App instances cannot yet be created
-     * Once setup is finished, `finishSetUp` flips isSetUp = true.
-     */
+    * @dev The `isSetUp` flag ensures there is a **protected deployment/configuration phase**:
+    * - Prevents accidental use of uninitialized protocol modules
+    * - Guarantees atomicity for initial collateral registration, app creation permissions, etc.
+    * - All app instances and user-facing interactions are disabled until setup is finished
+    */
     bool private isSetUp = false;
     
-    /// @dev Immutable protocol owner
-    address immutable private owner;
+    /// @dev protocol owner
+    address private owner;
 
     /// @dev External timelock contract used for delayed execution
     address private timelock;
@@ -113,10 +112,12 @@ abstract contract AccessManager {
     }
 
     /**
-     * @dev Restricts execution to the timelock contract.
-     *
-     * Used for functions that modify global or high-risk parameters.
-     */
+    * @dev The `onlyTimeLock` modifier dynamically switches behavior:
+    * - During initial deployment (`!isSetUp`), the OWNER can call timelock-protected functions
+    *   to perform setup tasks like registering collateral, configuring protocol parameters, etc.
+    * - After setup (`isSetUp`), only the timelock contract can call these functions, ensuring
+    *   delayed execution and governance control.
+    */
     modifier onlyTimeLock() {
         if (isSetUp && msg.sender != timelock)
             revert Error.InvalidAccess();
@@ -156,8 +157,24 @@ abstract contract AccessManager {
         roles[user] &= ~role;
     }
 
-    /// @notice Marks protocol as fully configured; after this only timelock may call certain functions
-    function finishSetUp() external onlyOwner {
+    /**
+    * @notice Marks protocol as fully configured.
+    *
+    * @dev FinishSetUp performs two key tasks atomically:
+    * 1. Sets `isSetUp = true`, which:
+    *    - Prevents further calls that are only allowed during initial deployment
+    *    - Enables app instance creation
+    *    - Locks certain protocol-level configurations to timelock-only execution
+    * 2. Optionally transfers ownership to the final governance or multisig address
+    *
+    * Security notes:
+    * - `transferOwnership` should typically be the multisig or governance contract
+    * - Must only be called **once** to prevent multiple handovers
+    * - Any temporary deployer privileges exist only during deployment and setup
+    */
+    function finishSetUp(address transferOwnership) external onlyOwner {
+        if (transferOwnership != address(0))
+            owner = transferOwnership;
         isSetUp = true;
     }
 }

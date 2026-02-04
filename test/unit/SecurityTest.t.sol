@@ -45,7 +45,7 @@ contract SecurityTest is Test {
             TX_CAP
         );
         vm.prank(owner);
-        security.finishSetUp();
+        security.finishSetUp(address(0));
     }
 
     function testConstructorSetsCaps() public pure  {

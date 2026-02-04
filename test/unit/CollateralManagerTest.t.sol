@@ -38,7 +38,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
@@ -61,7 +61,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_MED);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
@@ -83,7 +83,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_SOFT);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
@@ -107,7 +107,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
         vm.prank(timelock);
@@ -122,7 +122,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
         vm.prank(timelock);
@@ -142,7 +142,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
         
         address tok = Core._newToken();
         vm.prank(timelock);
@@ -161,7 +161,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
 
@@ -180,7 +180,7 @@ contract CollateralManagerTest is Test {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
         vm.prank(owner);
-        cm.finishSetUp();
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
 
