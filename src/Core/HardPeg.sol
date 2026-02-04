@@ -51,8 +51,9 @@ contract HardPeg is AppManager, Security {
      * @param timelock Protocol timelock address
      */
     constructor(uint256 globalDebtcap, uint256 mintCapPerTx, address owner, address timelock)
+    AccessManager(owner, timelock)
     CollateralManager(0)
-    Security(globalDebtcap, mintCapPerTx, owner, timelock)
+    Security(globalDebtcap, mintCapPerTx)
     {}
 
     /**

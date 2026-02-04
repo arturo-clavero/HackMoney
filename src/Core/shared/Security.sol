@@ -29,7 +29,6 @@ abstract contract Security is AccessManager{
     bool private withdrawPaused;
     uint256 private globalDebtCap;
     uint256 private mintCapPerTransaction;
-    address private timeLock;
 
     event MintPaused(address indexed by);
     // event MintUnpaused(address indexed by);
@@ -44,14 +43,11 @@ abstract contract Security is AccessManager{
 
     constructor (
         uint256 _globalDebtCap, 
-        uint256 _mintCapPerTx,
-        address _owner,
-        address _timelock 
-    ) AccessManager(_owner, _timelock) {
+        uint256 _mintCapPerTx
+    ) {
         if (_globalDebtCap == 0) revert InvalidCapValue();
         if(_mintCapPerTx == 0) revert InvalidCapValue();
         if (_mintCapPerTx > _globalDebtCap) revert InvalidCapValue();
-        timeLock = _timelock;
         globalDebtCap = _globalDebtCap;
         mintCapPerTransaction = _mintCapPerTx;
     }
