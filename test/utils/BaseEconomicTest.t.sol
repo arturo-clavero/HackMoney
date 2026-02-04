@@ -39,37 +39,55 @@ abstract contract BaseEconomicTest is Test {
         return IPeg(address(hard));
     }
 
-    function setUpBase(uint256[] memory modes, uint8[] memory decimals, uint256 _totalUsers, uint256 _totalApps) internal virtual{
-        peg = _deployPeg();
-
-        //create users
+    function _setUpUsers(uint256 _totalUsers) private {
+        users = new address[](_totalUsers);
+        usersPK = new uint256[](_totalUsers);
         for (uint256 i = 0; i < _totalUsers; i++){
             string memory seed = string(abi.encodePacked("user", i.toString()));
             (address newUser, uint256 pk) = makeAddrAndKey(seed);
-            users.push(newUser);
-            usersPK.push(pk);
+            users[i] = newUser;
+            usersPK[i]= pk;
         }
         totalUsers = _totalUsers;
+    }
 
-        //add global collateral...
+    function _setUpCol(uint256[] memory modes, uint8[] memory decimals) private {
         uint256 len = modes.length;
+        tokens = new MockToken[](len);
         assertEq(len, decimals.length);
         for(uint256 i = 0 ; i < len; i ++){
             MockToken newToken = _addGlobalCollateral(modes[i], decimals[i]);
-            _mintTokenTo(newToken, 1_000e6, users);
-            tokens.push(newToken);
+            _mintTokenTo(newToken, 1000, users);
+            tokens[i] = newToken;
         }
         totalTokens = len;
-       
-        //create app instance 
+    }
+
+    function _setUpApps(uint256 _totalApps) private {
+        for (uint256 i = 0; i < appIDs.length; i++){
+            uint256 id = appIDs[i];
+            delete appOwners[id];
+        }
+        appIDs = new uint256[](_totalApps);
         for (uint256 i = 0; i < _totalApps; i++){
             bytes32 seed = keccak256(abi.encodePacked("app", i));
             address newAppOwner = vm.addr(uint256(seed));
             uint256 newAppId = _addApp(newAppOwner);
             appOwners[newAppId] = newAppOwner;
-            appIDs.push(newAppId);
+            appIDs[i] = newAppId;
         }
         totalApps = _totalApps;
+    }
+
+    function setUpBase(uint256[] memory modes, uint8[] memory decimals, uint256 _totalUsers, uint256 _totalApps) internal {
+        peg = _deployPeg();
+        _updateBase(modes, decimals, _totalUsers, _totalApps);
+    }
+
+    function _updateBase(uint256[] memory modes, uint8[] memory decimals, uint256 _totalUsers, uint256 _totalApps) internal virtual{
+        _setUpUsers(_totalUsers);
+        _setUpCol(modes, decimals);
+        _setUpApps(_totalApps);
     }
 
 //set up helpers
@@ -144,23 +162,31 @@ abstract contract BaseEconomicTest is Test {
         vm.stopPrank();
     }
 
-    function _assertConservation() internal view {
-        uint256 sum;
-        for (uint256 i = 0; i < totalTokens; i++){
-            sum += peg.getGlobalPool(address(tokens[i]));
-        }
+    function _assertConservation() internal  {
+        uint256 sum = _calculateTotalCollateral(false, new uint256[](0));
         assertEq(sum, peg.getTotalPool(), "collateral not conserved");
 
-        sum = 0;
-         for (uint256 i = 0; i < totalApps; i++){
-            address coin = peg.getAppCoin(appIDs[i]);
-            sum += IERC20(coin).totalSupply();
-        }
+        sum =  _calculateTotalDebt();
         assertEq(sum, peg.getTotalSupply(), "supply not conserved");
 
     }
 
     function _assertSolvency() internal view {
         assertGe(peg.getTotalPool(), peg.getTotalSupply(), "system insolvent");
+    }
+
+    function _calculateTotalCollateral(bool usePrice, uint256[] memory price) internal virtual returns (uint256 sum){
+        for (uint256 i = 0; i < totalTokens; i++){
+            uint256 value = peg.getGlobalPool(address(tokens[i]));
+            if (usePrice) value = value * price[i]/ 1e18;
+            sum += value;
+        }
+    }
+
+    function _calculateTotalDebt() internal virtual returns (uint256 sum){
+        for (uint256 i = 0; i < totalApps; i++){
+            address coin = peg.getAppCoin(appIDs[i]);
+            sum += IERC20(coin).totalSupply();
+        }
     }
 }
