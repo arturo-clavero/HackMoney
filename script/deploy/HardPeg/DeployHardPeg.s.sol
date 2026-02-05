@@ -2,10 +2,10 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import "../../src/Core/HardPeg.sol";
-import "../../src/Y_Timelock.sol";
-import "../../src/Core/shared/CollateralManager.sol";
-import "../../test/utils/CoreLib.t.sol";
+import {HardPeg} from "./testAll.sol";
+import "../../../src/Y_Timelock.sol";
+import "../../../src/Core/shared/CollateralManager.sol";
+import "../../../test/utils/CoreLib.t.sol";
 
 //Update timelock deployment & adding protocol inside timelock
 contract DeployHardPeg is Script {
@@ -39,7 +39,7 @@ contract DeployHardPeg is Script {
         //     uint256     debtCap;             | A big number (total max of this collateral)        
         // }
 
-        address fakeToken = address(0xC0FE);
+        address fakeToken = address(Core._newToken());
         uint256 stableMode = Core.COL_MODE_STABLE;
         address[] memory fakeFeeds = new address[](3);
         fakeFeeds[0] = address(0xA);

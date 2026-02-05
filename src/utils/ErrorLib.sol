@@ -8,6 +8,7 @@ library Error {
     error AtLeastOneCollateralSupported();
     error CollateralNotSupportedByProtocol();
     error CollateralNotSupportedByApp();
+    error MaxCollateralTypesPerPosition();
     error InvalidTokenAddress();
     error InvalidMode();
     error InvalidAmount();
