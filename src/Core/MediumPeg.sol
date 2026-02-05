@@ -26,7 +26,7 @@ import {Error} from "../utils/ErrorLib.sol";
         - stablecoin supply based on the deposit value at time of mint 
         -  yield accures to the collateral not stablecoin
         - redemprion uses current collateral value to return correct propportion
-@notice - collateral should absorb whole hause so stablecoin will stay 1
+@notice - collateral should absorb whole chaos so stablecoin will stay 1
 @notice - if stablecin will start receive yields arbitrage will drain collateral
         Think about::
         -  how to track the difference between eposited value and current value with 
@@ -44,8 +44,12 @@ import {Error} from "../utils/ErrorLib.sol";
     minting logic ...
     yild collection
     redemption logic
-
-
-
-
  */
+
+ contract MediumPeg is AppManager, Security {
+    constructor(uint256 globalDebtcap, uint256 mintCapPerTx, address owner, address timelock)
+    AccessManager(owner, timelock)
+    CollateralManager(0) 
+    Security(globalDebtcap, mintCapPerTx)
+    {}
+ }

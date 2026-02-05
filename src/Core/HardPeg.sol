@@ -8,7 +8,7 @@ import {AppManager} from "./shared/AppManager.sol";
 
 import {RiskEngine} from "./../utils/RiskEngineLib.sol";
 
-import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20} from "@openzeppelin/ token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
 
 import {Error} from "../utils/ErrorLib.sol";
