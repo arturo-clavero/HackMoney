@@ -37,6 +37,12 @@ struct AppConfig {
  * - Its own PrivateCoin (ERC-20 & ERC20-Permit)
  * - Its own access-controlled user list
  * - A scoped set of supported collateral assets
+ * 
+ * Important: App registration is gated by protocol setup.
+ * - The `newInstance` function can only be called after the protocol
+ *   has finished its setup phase (`isSetUp = true` in AccessManager).
+ * - This ensures global collateral configuration and access controls
+ *   are initialized by the owner before any apps are deployed.
  *
  * For users depositing, collateral eligibility is enforced in two layers:
  * 1. Protocol-level support via CollateralManager
@@ -66,6 +72,7 @@ abstract contract AppManager is CollateralManager {
      * @notice Registers a new app instance and deploys its PrivateCoin.
      *
      * @dev
+     * - Callable only after protocol setup (`onlyAfterSetUp`).
      * - Deploys a new PrivateCoin bound to the app
      * - Assigns a unique app ID
      * - Computes the app's allowed collateral set
@@ -73,7 +80,7 @@ abstract contract AppManager is CollateralManager {
      *
      * Collateral tokens must already be supported by the protocol.
      */
-    function newInstance(AppInput calldata config) external returns (uint256 id) {
+    function newInstance(AppInput calldata config) external onlyAfterSetUp() returns (uint256 id)  {
         id = latestId;
         latestId = id + 1;
 

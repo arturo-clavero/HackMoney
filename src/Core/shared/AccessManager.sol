@@ -14,6 +14,7 @@ import {Error} from "../../utils/ErrorLib.sol";
  * Role management is intentionally centralized:
  * - Only the OWNER can grant or revoke roles.
  * - Timelock execution is enforced for sensitive global configuration updates.
+ * - isSetUp flag: ensures protocol configuration phase is protected
  *
  * This contract is intended to be inherited by core protocol modules.
  */
@@ -63,9 +64,18 @@ abstract contract AccessManager {
      * Intended for risk mitigation and incident response.
      */
     uint256 constant public GOVERNOR = 1 << 3;
+
+
+    /**
+    * @dev The `isSetUp` flag ensures there is a **protected deployment/configuration phase**:
+    * - Prevents accidental use of uninitialized protocol modules
+    * - Guarantees atomicity for initial collateral registration, app creation permissions, etc.
+    * - All app instances and user-facing interactions are disabled until setup is finished
+    */
+    bool private isSetUp = false;
     
-    /// @dev Immutable protocol owner
-    address immutable private owner;
+    /// @dev protocol owner
+    address private owner;
 
     /// @dev External timelock contract used for delayed execution
     address private timelock;
@@ -77,7 +87,7 @@ abstract contract AccessManager {
      * @param _owner Protocol owner (expected to be multisig)
      * @param _timelock Timelock contract used for queued execution
      */    
-     constructor(address _owner, address _timelock) {
+    constructor(address _owner, address _timelock) {
         owner = _owner;
         timelock = _timelock;
         roles[_owner] |= OWNER;
@@ -102,12 +112,22 @@ abstract contract AccessManager {
     }
 
     /**
-     * @dev Restricts execution to the timelock contract.
-     *
-     * Used for functions that modify global or high-risk parameters.
-     */
+    * @dev The `onlyTimeLock` modifier dynamically switches behavior:
+    * - During initial deployment (`!isSetUp`), the OWNER can call timelock-protected functions
+    *   to perform setup tasks like registering collateral, configuring protocol parameters, etc.
+    * - After setup (`isSetUp`), only the timelock contract can call these functions, ensuring
+    *   delayed execution and governance control.
+    */
     modifier onlyTimeLock() {
-        if (msg.sender != timelock)
+        if (isSetUp && msg.sender != timelock)
+            revert Error.InvalidAccess();
+        else if (!isSetUp && msg.sender != owner)
+            revert Error.InvalidAccess();
+        _;
+    }
+
+    modifier onlyAfterSetUp() {
+        if (!isSetUp)
             revert Error.InvalidAccess();
         _;
     }
@@ -135,5 +155,26 @@ abstract contract AccessManager {
      */
     function revokeRole(address user, uint256 role) external onlyOwner {
         roles[user] &= ~role;
+    }
+
+    /**
+    * @notice Marks protocol as fully configured.
+    *
+    * @dev FinishSetUp performs two key tasks atomically:
+    * 1. Sets `isSetUp = true`, which:
+    *    - Prevents further calls that are only allowed during initial deployment
+    *    - Enables app instance creation
+    *    - Locks certain protocol-level configurations to timelock-only execution
+    * 2. Optionally transfers ownership to the final governance or multisig address
+    *
+    * Security notes:
+    * - `transferOwnership` should typically be the multisig or governance contract
+    * - Must only be called **once** to prevent multiple handovers
+    * - Any temporary deployer privileges exist only during deployment and setup
+    */
+    function finishSetUp(address transferOwnership) external onlyOwner {
+        if (transferOwnership != address(0))
+            owner = transferOwnership;
+        isSetUp = true;
     }
 }

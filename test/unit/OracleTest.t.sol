@@ -28,6 +28,8 @@ contract OracleTest is Test {
         oracle = new OracleHarness(owner, timelock, Core.PEG_MED);
         mockFeed = new MockAggregator("aUSDC / USD", 8);
         aUSDC = Core._newToken();
+        vm.prank(owner);
+        oracle.finishSetUp(address(0));
         vm.prank(timelock);
         oracle.updateGlobalCollateral(
             Core._collateralInputWithFeed(aUSDC, Core.COL_MODE_YIELD, address(mockFeed))

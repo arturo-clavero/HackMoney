@@ -18,9 +18,9 @@ interface IPeg {
     function getVaultBalance(uint256 id, address user) external view returns (uint256);
 
     // config
+    function finishSetUp(address transferOwnership) external;
     function updateGlobalCollateral(CollateralInput calldata updatedCol) external;
     function addAppCollateral(uint256 appID, address token) external;
     function newInstance(AppInput calldata config) external returns (uint256 id);
     function getAppCoin(uint256 id) external view returns (address);
-
 }

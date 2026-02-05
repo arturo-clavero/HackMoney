@@ -10,10 +10,10 @@ contract AppManagerHarness is AppManager {
     address public owner;
     address public timelock;
 
-    constructor(address timelock_) 
+    constructor(address timelock_, address owner_) 
     CollateralManager(0) 
-    AccessManager(msg.sender, timelock_) {
-        owner = msg.sender;
+    AccessManager(owner_, timelock_) {
+        owner = owner_;
         timelock = timelock_;
     }
 
@@ -64,17 +64,18 @@ contract AppManagerTest is Test {
     event RegisteredApp(address indexed owner, uint256 indexed id, address coin);
 
     function setUp() public {
-        manager = new AppManagerHarness(timelock);
+        manager = new AppManagerHarness(timelock, owner);
         (user3, user3PK) = makeAddrAndKey("alice");
 
         col1 = Core._newToken();
         col2 = Core._newToken();
         col3 = Core._newToken();
 
-        vm.startPrank(timelock);
+        vm.startPrank(owner);
         manager.updateGlobalCollateral(Core._collateralInput(col1, Core.COL_MODE_STABLE));
         manager.updateGlobalCollateral(Core._collateralInput(col2, Core.COL_MODE_STABLE));
         manager.updateGlobalCollateral(Core._collateralInput(col3, Core.COL_MODE_STABLE));
+        manager.finishSetUp(address(0));
         vm.stopPrank();
     }
 
@@ -517,6 +518,16 @@ contract AppManagerTest is Test {
 
         assertEq(manager.exposed_getStablecoinID(coin1), id1);
         assertEq(manager.exposed_getStablecoinID(coin2), id2);
+    }
+
+    function testNewInstance_RevertBeforeSetup() public {
+        AppInput memory input = _defaultInput();
+
+        AppManagerHarness preSetupManager = new AppManagerHarness(timelock, owner);
+
+        vm.prank(owner);
+        vm.expectRevert(Error.InvalidAccess.selector);
+        preSetupManager.newInstance(input);
     }
 
 }

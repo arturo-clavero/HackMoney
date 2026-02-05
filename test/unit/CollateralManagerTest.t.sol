@@ -32,11 +32,13 @@ contract CollateralManagerTest is Test {
     address user = address(0x3);
 
 
-//constructor
 
+//constructor
     function testHardPegAllowsStableOnly() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
@@ -58,6 +60,8 @@ contract CollateralManagerTest is Test {
     function testMedPegAllowsStableAndYield() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_MED);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
@@ -78,6 +82,8 @@ contract CollateralManagerTest is Test {
     function testSoftPegAllowsStableAndVolatile() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_SOFT);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
@@ -100,6 +106,8 @@ contract CollateralManagerTest is Test {
     function testAddCollateralAssignsIdAndActivates() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
         vm.prank(timelock);
@@ -113,6 +121,8 @@ contract CollateralManagerTest is Test {
     function testUpdateKeepsSameId() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
         vm.prank(timelock);
@@ -131,6 +141,8 @@ contract CollateralManagerTest is Test {
     function testPauseAndUnpause() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
         
         address tok = Core._newToken();
         vm.prank(timelock);
@@ -148,6 +160,8 @@ contract CollateralManagerTest is Test {
     function testremoveGlobalCollateralResetsState() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
 
@@ -165,6 +179,8 @@ contract CollateralManagerTest is Test {
     function testOnlyTimelockCanMutate() public {
         CollateralHarness cm =
             new CollateralHarness(owner, timelock, Core.PEG_HARD);
+        vm.prank(owner);
+        cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
 
@@ -173,4 +189,18 @@ contract CollateralManagerTest is Test {
         cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
         vm.stopPrank();
     }
+
+    function testOwnerCanUpdateCollateral_PreSetup() public {
+        CollateralHarness cm = new CollateralHarness(owner, timelock, Core.PEG_HARD);
+
+        address tok = Core._newToken();
+
+        vm.prank(owner);
+        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+
+        CollateralConfig memory c = cm.getCollateral(tok);
+        assertEq(c.id, 1);
+        assertTrue(c.mode & Core.COL_MODE_ACTIVE != 0);
+    }
+
 }
