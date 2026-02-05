@@ -6,7 +6,7 @@ import {AccessManager} from "./AccessManager.sol";
 /**
  * @title pausing & governance control contract
  * @notice Manages protocol-level access control and feature-level pausing for minting and withdrawals.
- *
+ * @notice globalDebtCap mintCapPerTransaction should b changed through timelock
  * @dev This abstract contract provides the following:
  *      1. Feature-level pausing: minting and withdrawals can be paused/unpaused by governance.
  *      2. Role-based access: only the owner (or timelock/governance) can change protocol-critical parameters.
@@ -34,6 +34,7 @@ abstract contract Security is AccessManager{
     bool private withdrawPaused;
     uint256 private globalDebtCap;
     uint256 private mintCapPerTransaction;
+    uint256 public totalDebt; // total across the protocol
 
     event MintPaused(address indexed by);
     // event MintUnpaused(address indexed by);
@@ -45,6 +46,10 @@ abstract contract Security is AccessManager{
     error AlreadyPaused();
     error AlreadyUnpaused();
     error InvalidCapValue();
+    error MintIsPaused();
+    error InvalidAmount();
+    error CapExceeded();
+    error GlobalCapExceeded();
 
     constructor (
         uint256 _globalDebtCap, 
@@ -67,6 +72,17 @@ abstract contract Security is AccessManager{
         _;
     }
 
+     /// @notice security gate for the peg
+    function beforeMint(uint256 valueAmount) internal {
+        if (mintPaused) revert MintIsPaused();
+        if (valueAmount == 0) revert InvalidAmount();
+        if (valueAmount > mintCapPerTransaction)
+            revert CapExceeded();
+        uint256 newDebt = totalDebt + valueAmount;
+        if (newDebt > globalDebtCap)
+            revert GlobalCapExceeded();
+        totalDebt = newDebt;
+    }
     /// @notice Pauses minting. Can only be called by the owner.
     function pauseMint() external onlyOwner {
         if (mintPaused == true) revert AlreadyPaused();
