@@ -1,0 +1,10 @@
+out/
+lib/
+cache/
+broadcast/
+*.db
+*.log
+coverage/
+coverage.txt
+
+.env
