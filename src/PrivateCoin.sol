@@ -43,7 +43,7 @@ contract PrivateCoin is ERC20, ERC20Permit{
      * @notice Emitted when a permission update exceeds the processing limit.
      * @dev Caller must retry with the remaining addresses.
      */
-    event NeedToSetMorePermissions(address[] toAdd, address[] toRevoke);
+    event NeedToSetMorePermissions(address[] toAdd);
 
     /**
      * @param name ERC20 token name
@@ -68,7 +68,7 @@ contract PrivateCoin is ERC20, ERC20Permit{
         _appActions = appActions;
         _permission[app] |= appActions;
         if (!_grantPermission(users, userActions))
-            emit NeedToSetMorePermissions(users, new address[](0));
+            emit NeedToSetMorePermissions(users);
     }
 
     /**
@@ -132,22 +132,17 @@ contract PrivateCoin is ERC20, ERC20Permit{
 
 
     /**
-     * @notice Updates the authorized user list.
+     * @notice Extends the authorized user list.
      *
      * @dev
      * - Callable only by the protocol engine
      * - Processes users in bounded batches
      * - Emits an event if additional calls are required
      */
-    function updateUserList(address[] memory toAdd, address[] memory toRemove) external onlyEngine() {
+    function addUsers(address[] memory toAdd) external onlyEngine() {
         bool grantsNotFinished = _grantPermission(toAdd, _userActions);
-        bool revokesNotFinished =_revokePermission(toRemove, _userActions);
-        if (!grantsNotFinished && !revokesNotFinished)
-            emit NeedToSetMorePermissions(toAdd, toRemove);
-        else if (!grantsNotFinished)
-            emit NeedToSetMorePermissions(toAdd, new address[](0));
-        else if (!revokesNotFinished)
-            emit NeedToSetMorePermissions(new address[](0), toRemove);
+        if (!grantsNotFinished)
+            emit NeedToSetMorePermissions(toAdd);
     }
 
     function _grantPermission(address[] memory users, uint256 action) private returns (bool finished) {
@@ -160,19 +155,6 @@ contract PrivateCoin is ERC20, ERC20Permit{
 
         for (uint256 i = 0; i < len; i++){
             _permission[users[i]] |= action;
-        }
-    }
-
-    function _revokePermission(address[] memory users, uint256 action) private returns (bool finished){
-        finished = true;
-        uint256 len = users.length;
-        if (len > Actions.MAX_ARRAY_LEN){
-            len = Actions.MAX_ARRAY_LEN;
-            finished = false;
-        }
-
-        for (uint256 i = 0; i < len; i++){
-            _permission[users[i]] &= ~action;
         }
     }
 

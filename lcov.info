@@ -163,8 +163,8 @@ DA:98,34
 DA:104,34
 DA:106,34
 DA:113,2
-FN:113,AppManager.updateUserList
-FNDA:2,AppManager.updateUserList
+FN:113,AppManager.addUsers
+FNDA:2,AppManager.addUsers
 DA:114,2
 DA:115,2
 BRDA:115,3,0,1
@@ -404,8 +404,8 @@ FNDA:15,PrivateCoin.transferFrom
 DA:125,15
 DA:126,11
 DA:140,106
-FN:140,PrivateCoin.updateUserList
-FNDA:106,PrivateCoin.updateUserList
+FN:140,PrivateCoin.addUsers
+FNDA:106,PrivateCoin.addUsers
 DA:141,105
 DA:142,105
 DA:143,105

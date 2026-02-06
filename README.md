@@ -139,6 +139,7 @@ event RegisteredApp(
 );
 ```
 
+
 #### Important values to record from this event
 
 * **id**

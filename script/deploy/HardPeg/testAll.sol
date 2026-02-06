@@ -171,12 +171,12 @@ abstract contract AppManager is CollateralManager {
 
         emit RegisteredApp(msg.sender, id, coin);
     }
-    function updateUserList(uint256 id, address[] memory toAdd, address[] memory toRevoke) public {
+    function addUsers(uint256 id, address[] memory toAdd, address[] memory toRevoke) public {
         AppConfig storage thisApp = appConfig[id];
         if (msg.sender != thisApp.owner)
             revert Error.InvalidAccess();
 
-        IPrivateCoin(thisApp.coin).updateUserList(toAdd, toRevoke);
+        IPrivateCoin(thisApp.coin).addUsers(toAdd, toRevoke);
     }
     function addAppCollateral(uint256 appID, address token) external {
         AppConfig storage thisApp = appConfig[appID];

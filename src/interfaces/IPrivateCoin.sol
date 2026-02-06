@@ -18,6 +18,6 @@ interface IPrivateCoin is IERC20, IERC20Permit {
 
     function transfer(address, uint256) external returns (bool);
 
-    function updateUserList(address[] memory toAdd, address[] memory toRemove) external;
+    function addUsers(address[] memory toAdd) external;
 
 }

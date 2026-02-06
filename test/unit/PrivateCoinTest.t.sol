@@ -62,7 +62,7 @@ contract PrivateCoinTest is Test {
         address[] memory users = new address[](1);
         users[0] = user;
         vm.prank(engine);
-        c.updateUserList(users, new address[](0));
+        c.addUsers(users);
     }
 
 
@@ -261,7 +261,7 @@ contract PrivateCoinTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(Error.InvalidAccess.selector);
-        c.updateUserList(users, new address[](0));
+        c.addUsers(users);
     }
 
 //batch overflow :
@@ -274,7 +274,7 @@ contract PrivateCoinTest is Test {
         }
 
         vm.expectEmit(true, false, false, true);
-        emit PrivateCoin.NeedToSetMorePermissions(users, new address[](0));
+        emit PrivateCoin.NeedToSetMorePermissions(users);
 
         vm.prank(engine);
         new PrivateCoin(
@@ -301,36 +301,13 @@ contract PrivateCoinTest is Test {
         }
 
         vm.expectEmit(true, false, false, true);
-        emit PrivateCoin.NeedToSetMorePermissions(users, new address[](0));
+        emit PrivateCoin.NeedToSetMorePermissions(users);
 
         vm.prank(engine);
-        c.updateUserList(users, new address[](0));
+        c.addUsers(users);
     }
 
-    function testRevokePermissions_EmitsNeedToSetMorePermissions() public {
-        PrivateCoin c = setupCoin(
-            Actions.MINT | Actions.HOLD,
-            Actions.MINT | Actions.HOLD
-        );
-
-        uint256 len = Actions.MAX_ARRAY_LEN + 3;
-        address[] memory users = new address[](len);
-
-        for (uint256 i = 0; i < len; i++) {
-            users[i] = address(uint160(i + 200));
-        }
-
-        vm.prank(engine);
-        c.updateUserList(users, new address[](0));
-
-        vm.expectEmit(true, false, false, true);
-        emit PrivateCoin.NeedToSetMorePermissions(new address[](0), users);
-
-        vm.prank(engine);
-        c.updateUserList(new address[](0), users);
-    }
-
-    function testUpdateUserList_BothOverflow() public {
+    function testUpdateUserList_Overflow() public {
         PrivateCoin c = setupCoin(
             Actions.MINT | Actions.HOLD,
             Actions.MINT | Actions.HOLD
@@ -339,18 +316,16 @@ contract PrivateCoinTest is Test {
         uint256 len = Actions.MAX_ARRAY_LEN + 1;
 
         address[] memory add = new address[](len);
-        address[] memory remove = new address[](len);
 
         for (uint256 i; i < len; i++) {
             add[i] = address(uint160(1000 + i));
-            remove[i] = address(uint160(2000 + i));
         }
 
         vm.expectEmit(true, true, false, true);
-        emit PrivateCoin.NeedToSetMorePermissions(add, remove);
+        emit PrivateCoin.NeedToSetMorePermissions(add);
 
         vm.prank(engine);
-        c.updateUserList(add, remove);
+        c.addUsers(add);
     }
 
 
@@ -395,29 +370,6 @@ contract PrivateCoinTest is Test {
         c.transferFrom(user1, user2, 1);
     }
 
-    function testRevokedUserCannotReceiveTransfer() public {
-        PrivateCoin c = setupCoin(
-            Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST,
-            Actions.MINT | Actions.HOLD | Actions.TRANSFER_DEST
-        );
-
-        grantUser(c, user1);
-        grantUser(c, user2);
-
-        vm.prank(engine);
-        c.mint(app, user1, 2);
-
-        // revoke TRANSFER_DEST from user2
-        address[] memory revoke = new address[](1);
-        revoke[0] = user2;
-
-        vm.prank(engine);
-        c.updateUserList(new address[](0), revoke);
-
-        vm.prank(user1);
-        vm.expectRevert(Error.InvalidPermission.selector);
-        c.transfer(user2, 1);
-    }
 
 //mint
 

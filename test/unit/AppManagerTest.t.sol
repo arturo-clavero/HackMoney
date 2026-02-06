@@ -186,13 +186,13 @@ contract AppManagerTest is Test {
     }
     
 
-    // updateUserList
+    // addUsers
     function testUpdateUserList_OwnerOnly() public {
         vm.prank(owner);
         manager.newInstance(_defaultInput());
 
         vm.prank(owner);
-        manager.updateUserList(1, _singleUser(user2), _emptyAddr());
+        manager.addUsers(1, _singleUser(user2));
     }
 
     function testUpdateUserList_Revert_NotOwner() public {
@@ -201,7 +201,7 @@ contract AppManagerTest is Test {
 
         vm.prank(user1);
         vm.expectRevert();
-        manager.updateUserList(1, _singleUser(user2), _emptyAddr());
+        manager.addUsers(1, _singleUser(user2));
     }
 
     // addAppCollateral
@@ -408,23 +408,14 @@ contract AppManagerTest is Test {
         assertTrue(cfg.coin != address(0));
     }
 
-// updateUserList extended tests
+// addUsers extended tests
 
     function testUpdateUserList_EmptyArrays() public {
         vm.prank(owner);
         manager.newInstance(_defaultInput());
 
         vm.prank(owner);
-        manager.updateUserList(1, _emptyAddr(), _emptyAddr());
-    }
-
-    function testUpdateUserList_AddAndRevokeSameUser() public {
-        vm.prank(owner);
-        manager.newInstance(_defaultInput());
-
-        address[] memory users = _singleUser(user1);
-        vm.prank(owner);
-        manager.updateUserList(1, users, users); // idempotent
+        manager.addUsers(1, _emptyAddr());
     }
 
 // add/remove collateral extended tests
