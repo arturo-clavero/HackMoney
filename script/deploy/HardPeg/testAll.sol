@@ -36,11 +36,9 @@ abstract contract AccessManager {
             revert Error.InvalidAccess();
         _;
     }
-
+//modified for testing:
     modifier onlyTimeLock() {
-        if (isSetUp && msg.sender != timelock)
-            revert Error.InvalidAccess();
-        else if (!isSetUp && msg.sender != owner)
+        if ( msg.sender != owner)
             revert Error.InvalidAccess();
         _;
     }

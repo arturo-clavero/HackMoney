@@ -1,4 +1,161 @@
-## How To Deploy
+# Usage of External Functions
+Explaining how to  :
+- Add a global collateral token (~dev)
+- Deploy a new stablecoin token (~apps)
+- Interact with stablecoin token (~apps)
+- Modify stablecoin token configs (~apps)
+- Modify protocol configs (~dev)
+
+---
+
+## Add a Global Collateral Token
+
+We need to register tokens with specific configurations. Apps can then choose collateral from this set of tokens during initial deployment. This is done by us, and is not necessiraly part of the user flow.
+
+### Solidity Function
+
+```solidity
+function updateGlobalCollateral(CollateralInput calldata updatedCol) external;
+```
+
+### Input Struct
+
+```solidity
+struct CollateralInput {
+    address   tokenAddress;
+    uint256   mode;
+    address[] oracleFeeds;
+    uint256   LTV;
+    uint256   liquidityThreshold;  
+    uint256   debtCap;     
+}
+```
+
+### Parameters
+
+* **tokenAddress**: on-chain address of the token (deploy mock or real).
+* **mode**: defines the type of collateral. Use bitmask constants. (See implementation below)
+
+* **oracleFeeds**: array of price feed addresses.
+* **LTV**: Loan-to-value ratio (0–100).
+* **liquidityThreshold**: number (0–100) controlling collateral liquidity requirement.
+* **debtCap**: maximum debt allowed for this collateral (big number).
+
+### Implementing modes
+Constant bit flags per mode
+
+```javascript
+const MODE_STABLE   = 1 << 0;  
+const MODE_VOLATILE = 1 << 1;  
+const MODE_YIELD    = 1 << 2;  
+```
+How to set a mode for each collateral type : 
+1. stable collateral (~USDC) :
+```javascript
+const stableMode = 0 | MODE_STABLE; 
+```
+2. stable yield collateral (~USYC) :
+```javascript
+const stableYieldMode =  0 | MODE_STABLE | MODE_YIELD;
+```
+3. volatile yield collateral (~sETH) :
+```javascript
+const volatileYieldMode = 0 | MODE_VOLATILE | MODE_YIELD;
+```
+1. volatile collateral (~ETH) :
+```javascript
+const volatileMode = 0 | MODE_VOLATILE;
+```
+
+
+## Deploy a "new" stablecoin
+
+Apps can register a new stablecoin token with specific configurations. After they input their "rules", our contract will register them and deploy an ERC-20 token just for them. This ERC-20 allows meta-tx actions because its erc-20permit. 
+
+### Solidity Function
+
+```solidity
+    function newInstance(AppInput calldata config) external returns (uint256 id)  {}
+```
+
+### Input Struct
+
+```solidity
+struct AppInput {
+    string name;
+    string symbol;
+    uint256 appActions;
+    uint256 userActions;
+    address[] users;
+    address[] tokens;
+}
+```
+
+### Parameters
+* **name**: ERC-20 Name
+* **symbol**: ERC-20 Symbol
+* **app actions**: defines the type of actions the app can perform. Use bitmask constants. (See implementation below)
+* **user actions**: defines the type of actions the users can perform. Use bitmask constants. (See implementation below)
+* **users**: Add a list of user addreses that will interact with the app's token
+* **tokens**: Add a list of token addreses that will be used as collateral. Maximum 5. They must be chosen from the previous "global collateral" set. 
+
+### Implementing actions
+Description of each action :
+Mint : Who is allowed to mint the stablecoin ?
+Hold : Who is allowed to hold the stablecoin ?
+Transfer Dest : Who is allowed to receive transfers ?
+
+Constant bit flags per action
+
+```javascript
+const MINT   = 1 << 0;  
+const HOLD = 1 << 1;  
+const TRANSFER_DEST    = 1 << 2;  
+```
+
+How to set an action type: 
+```javascript
+const canOnlyMint = 0 | MINT;
+const canOnlyHold = 0 | HOLD;
+const canReceiveTransfers = 0 | HOLD | TRANSFER_DEST;
+const canMintAndHold = 0 | MINT | HOLD;
+const canMintandReceiveTransfers = 0 | MINT | HOLD | TRANSFER_DEST;
+```
+
+With these constants we can define the behavior for the app and users. It is necessary that at least one group can mint, and at least one can hold tokens. Otherwise the token is unusable.
+
+### Return Value & Events
+
+* The function returns the **App ID** (`uint256`).
+* This **App ID** is required for all future interactions with the app-specific stablecoin instance.
+
+After a successful registration, the contract emits the following event:
+
+```solidity
+event RegisteredApp(
+    address indexed owner,
+    uint256 indexed id,
+    address coin
+);
+```
+
+#### Important values to record from this event
+
+* **id**
+  The unique identifier of the app.
+  This value must be used when interacting with the stablecoin logic (minting, redeeming, etc.).
+
+* **coin**
+  The address of the app-specific ERC-20 token.
+  This address should be added to MetaMask (or any wallet) in order to:
+
+  * Display balances
+  * Track transfers
+  * Visualize user interactions with the stablecoin
+
+
+
+# How To Deploy
 Example HardPeg contract already deployed on sepolia at address 0x3fe8A3760C2794A05e7e8EFBF41Ec831A0eb74F9.
 >Etherscan link to contract : https://sepolia.etherscan.io/address/0x3fe8a3760c2794a05e7e8efbf41ec831a0eb74f9#code
 
