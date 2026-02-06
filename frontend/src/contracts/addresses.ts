@@ -4,7 +4,7 @@ import { type Address } from "viem";
 export const CONTRACT_ADDRESSES: Record<number, { hardPeg: Address }> = {
   // Localhost / Anvil
   31337: {
-    hardPeg: "0x851356ae760d987E095750cCeb3bC6014560891C",
+    hardPeg: "0x0165878A594ca255338adfa4d48449f69242Eb8F",
   },
 };
 
