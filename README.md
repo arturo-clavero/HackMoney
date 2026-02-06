@@ -101,9 +101,9 @@ struct AppInput {
 
 ### Implementing actions
 Description of each action :
-Mint : Who is allowed to mint the stablecoin ?
-Hold : Who is allowed to hold the stablecoin ?
-Transfer Dest : Who is allowed to receive transfers ?
+ * Mint : Who is allowed to mint the stablecoin ?
+ * Hold : Who is allowed to hold the stablecoin ?
+ * Transfer Dest : Who is allowed to receive transfers ?
 
 Constant bit flags per action
 
@@ -139,7 +139,6 @@ event RegisteredApp(
 );
 ```
 
-
 #### Important values to record from this event
 
 * **id**
@@ -153,6 +152,42 @@ event RegisteredApp(
   * Display balances
   * Track transfers
   * Visualize user interactions with the stablecoin
+
+
+## Interact with an app-stablecoin
+Accounts can deposit/withdraw collateral, and mint(create)/redeam(give back) stablecoins. To interact with a stablecoin we will need the id. 
+>  Transfers happen directly through the ERC-20 contract (directly on metamask). 
+
+### Deposit Collateral
+Minters can deposit collateral. This collateral must be supported by the app
+```javascript
+    function deposit(uint256 id, address token, uint256 rawAmount);
+```
+
+### Withdraw Collateral
+Anyone with "free-collateral" (isn't backing a stablecoin), can withdraw.
+The account will get their collateral back. 
+```javascript
+    function withdrawCollateral(uint256 id, uint256 valueAmount);
+```
+
+>In the case of the hard peg they will receive a bunch of collateral types, regardless of the initial deposit. We can "join" these into a single type with LIFI but its not necessary.
+
+### Mint new stablecoins
+Minters with enough "free-collateral" (not backing stablecoins) can mint to an account. This account will receive "app" stablecoins.
+```javascript
+    function mint(uint256 id, address to, uint256 rawAmount);
+```
+
+### Redeam existing stablecoins
+Anyone holding a stablecoin can return it to the protocol and will receive 1:1 ratio of collateral back. 
+> User-> [1$ stablecoin] -> Protocol
+> Protocol-> [1$ collateral] -> User
+``` javascript
+    function redeam(address token, uint256 rawAmount);
+```
+
+
 
 
 
