@@ -12,4 +12,6 @@ library Error {
     error InvalidTokenAddress();
     error InvalidMode();
     error InvalidAmount();
-}
+    error InsufficientCollateral();
+    error UserHasDebt();
+}   

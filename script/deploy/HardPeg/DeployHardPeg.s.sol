@@ -19,7 +19,7 @@ contract DeployHardPeg is Script {
         Timelock timelock = new Timelock();
 
         // 2. Deploy protocol with deployer as temporary owner
-        address multisigOwner = vm.envAddress("MULTISIG");
+        address owner = vm.envAddress("OWNER");
         uint256 globalDebtCap = 5_000_000 ether;
         uint256 mintCapPerTx = 1_000 ether;
         HardPeg protocol = new HardPeg(
@@ -59,7 +59,7 @@ contract DeployHardPeg is Script {
         // timelock.setProtocol(address(protocol));
 
         // 5. Finish setup + transfer ownership to multisig
-        protocol.finishSetUp(multisigOwner);
+        protocol.finishSetUp(owner);
 
         vm.stopBroadcast();
     }
