@@ -4,7 +4,6 @@ Explaining how to  :
 - Deploy a new stablecoin token (~apps)
 - Interact with stablecoin token (~apps)
 - Modify stablecoin token configs (~apps)
-- Modify protocol configs (~dev)
 
 ---
 
@@ -188,7 +187,18 @@ Anyone holding a stablecoin can return it to the protocol and will receive 1:1 r
 ```
 
 
+## Modify stablecoin token configs
 
+1. Modify users :
+```solidity
+    function addUsers(uint256 appID, address[] memory toAdd);
+```
+
+2. Modify collateral (at app level) :
+```solidity
+    function addAppCollateral(uint256 appID, address token);
+    function removeAppCollateral(uint256 appID, address token);
+```
 
 
 # How To Deploy
