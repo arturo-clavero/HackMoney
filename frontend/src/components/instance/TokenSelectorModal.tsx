@@ -4,6 +4,11 @@ import { useState, useMemo, useEffect } from "react";
 import { formatUnits } from "viem";
 import type { ExtendedChain, TokenAmount } from "@lifi/sdk";
 
+const ALL_CHAINS_ID = 0;
+
+const scrollbarClasses =
+  "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-300 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-600";
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -11,6 +16,8 @@ interface Props {
   chains: ExtendedChain[];
   tokensByChain: Record<number, TokenAmount[]>;
   isLoading: boolean;
+  loadBalancesForChain: (chainId: number) => void;
+  loadingBalancesChainId: number | null;
   connectedChainId?: number;
 }
 
@@ -21,23 +28,49 @@ export function TokenSelectorModal({
   chains,
   tokensByChain,
   isLoading,
+  loadBalancesForChain,
+  loadingBalancesChainId,
   connectedChainId,
 }: Props) {
-  const [selectedChainId, setSelectedChainId] = useState<number | null>(null);
+  const [selectedChainId, setSelectedChainId] = useState<number>(ALL_CHAINS_ID);
   const [search, setSearch] = useState("");
 
-  // Default to connected chain when modal opens
+  const chainMap = useMemo(() => {
+    const map = new Map<number, ExtendedChain>();
+    for (const chain of chains) map.set(chain.id, chain);
+    return map;
+  }, [chains]);
+
+  // Reset selection when modal opens — always start with All Chains
   useEffect(() => {
     if (isOpen) {
-      setSelectedChainId(connectedChainId ?? chains[0]?.id ?? null);
+      setSelectedChainId(ALL_CHAINS_ID);
       setSearch("");
     }
-  }, [isOpen, connectedChainId, chains]);
+  }, [isOpen]);
 
-  // Sort and filter tokens for the selected chain
+  // Auto-load balances when a specific chain is selected
+  useEffect(() => {
+    if (selectedChainId && selectedChainId !== ALL_CHAINS_ID) {
+      loadBalancesForChain(selectedChainId);
+    }
+  }, [selectedChainId, loadBalancesForChain]);
+
+  // Auto-load connected chain balances when modal opens
+  useEffect(() => {
+    if (isOpen && connectedChainId) {
+      loadBalancesForChain(connectedChainId);
+    }
+  }, [isOpen, connectedChainId, loadBalancesForChain]);
+
+  // Sort and filter tokens for the selected chain (or all chains)
   const filteredTokens = useMemo(() => {
-    if (!selectedChainId) return [];
-    const tokens = tokensByChain[selectedChainId] ?? [];
+    let tokens: TokenAmount[];
+    if (selectedChainId === ALL_CHAINS_ID) {
+      tokens = Object.values(tokensByChain).flat();
+    } else {
+      tokens = tokensByChain[selectedChainId] ?? [];
+    }
 
     const filtered = search
       ? tokens.filter(
@@ -57,7 +90,6 @@ export function TokenSelectorModal({
       if (aHasBalance && !bHasBalance) return -1;
       if (!aHasBalance && bHasBalance) return 1;
       if (aHasBalance && bHasBalance) {
-        // Compare by USD value if available, otherwise by raw amount
         const aUsd = Number(a.priceUSD ?? "0") * Number(formatUnits(aBalance, a.decimals));
         const bUsd = Number(b.priceUSD ?? "0") * Number(formatUnits(bBalance, b.decimals));
         return bUsd - aUsd;
@@ -67,6 +99,8 @@ export function TokenSelectorModal({
   }, [selectedChainId, tokensByChain, search]);
 
   if (!isOpen) return null;
+
+  const showAllChains = selectedChainId === ALL_CHAINS_ID;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -79,7 +113,19 @@ export function TokenSelectorModal({
       {/* Modal */}
       <div className="relative z-10 flex h-[500px] w-full max-w-xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
         {/* Left: Chain list */}
-        <div className="flex w-[140px] flex-shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-800/50">
+        <div className={`flex w-[140px] flex-shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-800/50 ${scrollbarClasses}`}>
+          {/* All Chains option */}
+          <button
+            onClick={() => setSelectedChainId(ALL_CHAINS_ID)}
+            className={`flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-medium transition-colors ${
+              showAllChains
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+            }`}
+          >
+            <span className="truncate">All Chains</span>
+          </button>
+          <div className="my-0.5 border-t border-zinc-200 dark:border-zinc-700" />
           {chains.map((chain) => (
             <button
               key={chain.id}
@@ -106,9 +152,14 @@ export function TokenSelectorModal({
         <div className="flex flex-1 flex-col">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-            <h3 className="text-sm font-semibold text-black dark:text-white">
-              Select Token
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-black dark:text-white">
+                Select Token
+              </h3>
+              {loadingBalancesChainId !== null && (
+                <span className="text-xs text-zinc-400">Loading balances...</span>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
@@ -129,7 +180,7 @@ export function TokenSelectorModal({
           </div>
 
           {/* Token list */}
-          <div className="flex-1 overflow-y-auto">
+          <div className={`flex-1 overflow-y-auto ${scrollbarClasses}`}>
             {isLoading ? (
               <div className="flex h-full items-center justify-center">
                 <p className="text-sm text-zinc-400">Loading tokens...</p>
@@ -144,9 +195,9 @@ export function TokenSelectorModal({
                 const hasBalance = balance > BigInt(0);
                 return (
                   <button
-                    key={token.address}
+                    key={`${token.chainId}-${token.address}`}
                     onClick={() => {
-                      onSelect(token, selectedChainId!);
+                      onSelect(token, token.chainId);
                       onClose();
                     }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -168,6 +219,11 @@ export function TokenSelectorModal({
                       </p>
                       <p className="truncate text-xs text-zinc-400">
                         {token.name}
+                        {showAllChains && (
+                          <span className="text-zinc-300 dark:text-zinc-600">
+                            {" · "}{chainMap.get(token.chainId)?.name}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="text-right">

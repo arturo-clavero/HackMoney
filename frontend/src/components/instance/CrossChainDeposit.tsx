@@ -20,19 +20,22 @@ export function CrossChainDeposit({ appId }: { appId: bigint }) {
   const [destChainId, setDestChainId] = useState<number | null>(null);
   const [amount, setAmount] = useState("");
 
-  const { chains, tokensByChain, isLoading: tokensLoading, load: loadTokens } = useLifiTokens(address);
+  const { chains, tokensByChain, isLoading: tokensLoading, loadingBalancesChainId, load: loadTokens, loadBalancesForChain } = useLifiTokens(address);
   const { quote, isLoading: quoteLoading, error: quoteError, fetchQuote, clearQuote } = useLifiQuote();
   const { status: swapStatus, error: swapError, execute: executeSwap, resetStatus, setStatus: setSwapStatus } = useLifiExecution();
 
+  // Eagerly load chains + tokens, preload connected chain balances
+  useEffect(() => {
+    loadTokens(chainId);
+  }, [loadTokens, chainId]);
+
   const handleOpenSourceModal = useCallback(() => {
-    if (chains.length === 0) loadTokens();
     setSourceModalOpen(true);
-  }, [chains.length, loadTokens]);
+  }, []);
 
   const handleOpenDestModal = useCallback(() => {
-    if (chains.length === 0) loadTokens();
     setDestModalOpen(true);
-  }, [chains.length, loadTokens]);
+  }, []);
 
   const handleSourceSelect = useCallback((token: TokenAmount, tokenChainId: number) => {
     setSourceToken(token);
@@ -271,6 +274,8 @@ export function CrossChainDeposit({ appId }: { appId: bigint }) {
         chains={chains}
         tokensByChain={tokensByChain}
         isLoading={tokensLoading}
+        loadBalancesForChain={loadBalancesForChain}
+        loadingBalancesChainId={loadingBalancesChainId}
         connectedChainId={chainId}
       />
       <TokenSelectorModal
@@ -280,6 +285,8 @@ export function CrossChainDeposit({ appId }: { appId: bigint }) {
         chains={chains}
         tokensByChain={tokensByChain}
         isLoading={tokensLoading}
+        loadBalancesForChain={loadBalancesForChain}
+        loadingBalancesChainId={loadingBalancesChainId}
         connectedChainId={chainId}
       />
     </div>
