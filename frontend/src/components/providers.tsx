@@ -5,7 +5,7 @@ import { createAppKit } from "@reown/appkit/react";
 import { type ReactNode, useState } from "react";
 import { WagmiProvider, type State } from "wagmi";
 import { wagmiAdapter, projectId, networks } from "@/config/wagmi";
-import { mainnet } from "@reown/appkit/networks";
+import { mainnet } from "@reown/appkit/networks"; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 // Set up metadata
 const metadata = {
@@ -20,7 +20,7 @@ createAppKit({
   adapters: [wagmiAdapter],
   projectId: projectId!,
   networks,
-  defaultNetwork: mainnet,
+  defaultNetwork: networks[0],
   metadata,
   features: {
     analytics: true,

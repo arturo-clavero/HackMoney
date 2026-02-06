@@ -67,7 +67,10 @@ abstract contract AppManager is CollateralManager {
     
     /// @dev Emitted when a new app instance is registered.
     event RegisteredApp(address indexed owner, uint256 indexed id, address coin);
-    
+
+    /// @dev Emitted when an app's user list is updated.
+    event UserListUpdated(uint256 indexed id, address[] added);
+ 
     /**
      * @notice Registers a new app instance and deploys its PrivateCoin.
      *
@@ -126,6 +129,7 @@ abstract contract AppManager is CollateralManager {
             revert Error.InvalidAccess();
 
         IPrivateCoin(thisApp.coin).addUsers(toAdd);
+        emit UserListUpdated(id, toAdd);
     }
 
     /**
@@ -211,5 +215,13 @@ abstract contract AppManager is CollateralManager {
     function getAppCoin(uint256 id) external view returns (address){
         require (id < latestId);
         return appConfig[id].coin;
+    }
+
+    function getAppConfig(uint256 id) external view returns (AppConfig memory) {
+        return appConfig[id];
+    }
+
+    function isAppCollateralAllowed(uint256 appID, address token) external view returns (bool) {
+        return _isAppCollateralAllowed(appID, token);
     }
 }

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { cookieToInitialState } from "wagmi";
 import { config } from "@/config/wagmi";
 import { Providers } from "@/components/providers";
+import { Navbar } from "@/components/Navbar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,7 +35,10 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers initialState={initialState}>{children}</Providers>
+        <Providers initialState={initialState}>
+          <Navbar />
+          {children}
+        </Providers>
       </body>
     </html>
   );

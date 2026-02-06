@@ -166,4 +166,12 @@ abstract contract CollateralManager is AccessManager {
         return globalCollateralConfig[tokenAddress].id;
     }
 
+    function getGlobalCollateral(address token) external view returns (CollateralConfig memory) {
+        return globalCollateralConfig[token];
+    }
+
+    function getGlobalCollateralList() external view returns (address[] memory) {
+        return globalCollateralSupported;
+    }
+
 }
