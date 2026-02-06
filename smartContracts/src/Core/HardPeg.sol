@@ -65,13 +65,25 @@ contract HardPeg is AppManager, Security {
      * @param rawAmount Amount of collateral tokens to deposit
      */
     function deposit(uint256 id, address token, uint256 rawAmount) external {
+        depositTo(id, msg.sender, token, rawAmount); 
+    }
+
+    /**
+     * @notice Deposit collateral to a sepcific account into the app
+     * @dev Only supported collateral is accepted. `rawAmount` is in token units.
+     * @param id App ID
+     * @param to Account who will own the deposited tokens
+     * @param token Collateral token address
+     * @param rawAmount Amount of collateral tokens to deposit
+     */
+    function depositTo(uint256 id, address to, address token, uint256 rawAmount) public {
         if (!_isAppCollateralAllowed(id, token))
             revert Error.CollateralNotSupportedByApp();
         if (rawAmount == 0)
             revert Error.InvalidAmount();
-        IERC20(token).safeTransferFrom(msg.sender, address(this), rawAmount);
+        IERC20(token).safeTransferFrom(to, address(this), rawAmount);
         uint256 valueAmount = rawAmount / globalCollateralConfig[token].scale;
-        vault[id][msg.sender] += valueAmount;
+        vault[id][to] += valueAmount;
         globalPool[token] += valueAmount;
         totalPool += valueAmount;
     }

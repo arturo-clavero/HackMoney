@@ -162,6 +162,12 @@ Minters can deposit collateral. This collateral must be supported by the app
 ```javascript
     function deposit(uint256 id, address token, uint256 rawAmount);
 ```
+> Deposit recorded for "msg.sender"
+
+```javascript
+    function depositTo(uint256 id, address to, address token, uint256 rawAmount);
+```
+> Deposit recorded for "to" account. May be necessary to delegate deposits to users when bridges are used.
 
 ### Withdraw Collateral
 Anyone with "free-collateral" (isn't backing a stablecoin), can withdraw.
