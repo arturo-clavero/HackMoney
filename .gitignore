@@ -8,3 +8,5 @@ coverage/
 coverage.txt
 
 .env
+.worktrees/
+anvil-state.json
