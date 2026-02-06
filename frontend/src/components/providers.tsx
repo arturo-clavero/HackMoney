@@ -6,6 +6,7 @@ import { type ReactNode, useState } from "react";
 import { WagmiProvider, type State } from "wagmi";
 import { wagmiAdapter, projectId, networks } from "@/config/wagmi";
 import { mainnet } from "@reown/appkit/networks"; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { initLifi } from "@/config/lifi";
 
 // Set up metadata
 const metadata = {
@@ -26,6 +27,8 @@ createAppKit({
     analytics: true,
   },
 });
+
+initLifi();
 
 export function Providers({
   children,
