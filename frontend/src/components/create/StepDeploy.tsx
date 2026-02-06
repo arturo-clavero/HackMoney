@@ -28,7 +28,7 @@ export function StepDeploy() {
   const [appId, setAppId] = useState<bigint | null>(null);
   const [coinAddress, setCoinAddress] = useState<string | null>(null);
 
-  const appActions = Actions.MINT;
+  const appActions = Actions.MINT | Actions.HOLD;
   const userActions =
     Actions.HOLD | Actions.TRANSFER_DEST | (state.usersCanMint ? Actions.MINT : BigInt(0));
 
