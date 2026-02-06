@@ -19,6 +19,8 @@ import {Error} from "../../utils/ErrorLib.sol";
  * This contract is intended to be inherited by core protocol modules.
  */
 abstract contract AccessManager {
+
+    uint256 internal constant WAD = 1e19;
     /**
      * @dev OWNER
      * Protocol owner with full administrative control.

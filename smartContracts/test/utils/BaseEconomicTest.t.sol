@@ -94,10 +94,10 @@ abstract contract BaseEconomicTest is Test {
 
 //set up helpers
     function _raw(uint256 amount, address token) internal view returns (uint256){
-        uint8 d;
+        uint8 d = 18;
 
-        if (token == address(0)) d = uint8(18);
-        else d = MockToken(token).decimals();
+        if (token != address(0))
+            d = MockToken(token).decimals();
 
         uint256 scale = 10 ** d;
         return(amount * scale);
@@ -136,6 +136,22 @@ abstract contract BaseEconomicTest is Test {
         }
     }
 
+    function _addNewToken(address token, uint256 id, address newAppOwner) internal {
+        vm.prank(newAppOwner);
+        try peg.addAppCollateral(id, token) {
+        } catch {
+            // failed, probably because token is not global yet
+            _addGlobalCollateral(token, Core.COL_MODE_STABLE);
+            vm.prank(newAppOwner);
+            peg.addAppCollateral(id, token);
+        }
+    }
+
+    function _addTempAppInstance(address newAppOwner) internal returns (uint256 newAppId) {
+        bytes32 seed = keccak256(abi.encodePacked("app", block.timestamp));
+        newAppId = _addApp(newAppOwner);
+    }
+
     function _mintTokenTo(MockToken token, uint256 valueAmount, address[] memory _users) internal {
         uint256 len = _users.length;
         for (uint256 i = 0; i < len; i++){
@@ -150,6 +166,13 @@ abstract contract BaseEconomicTest is Test {
         token.mint(_user, _raw(valueAmount, address(token)));
         vm.startPrank(_user);
         token.approve(address(peg), type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function _mintTokenTo(MockToken token, uint256 valueAmount, address _user, address spender) internal {
+        token.mint(_user, _raw(valueAmount, address(token)));
+        vm.startPrank(_user);
+        token.approve(spender, type(uint256).max);
         vm.stopPrank();
     }
 

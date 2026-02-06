@@ -110,8 +110,9 @@ contract CollateralManagerTest is Test {
         cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
-        vm.prank(timelock);
+        vm.startPrank(timelock);
         cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        vm.stopPrank();
 
         CollateralConfig memory c = cm.getCollateral(tok);
         assertEq(c.id, 1);
@@ -125,17 +126,17 @@ contract CollateralManagerTest is Test {
         cm.finishSetUp(address(0));
 
         address tok = Core._newToken();
-        vm.prank(timelock);
+        vm.startPrank(timelock);
         cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
 
         CollateralInput memory updated = Core._collateralInput(tok, Core.COL_MODE_STABLE);
         updated.LTV = 60;
 
-        vm.prank(timelock);
         cm.updateGlobalCollateral(updated);
+        vm.stopPrank();
 
         assertEq(cm.getCollateral(tok).id, 1);
-        assertEq(cm.getCollateral(tok).LTV, 60);
+        assertEq(cm.getCollateral(tok).LTV, 60 * 1e19 / 100);
     }
 
     function testPauseAndUnpause() public {
@@ -145,16 +146,15 @@ contract CollateralManagerTest is Test {
         cm.finishSetUp(address(0));
         
         address tok = Core._newToken();
-        vm.prank(timelock);
+        vm.startPrank(timelock);
         cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
 
-        vm.prank(timelock);
         cm.pauseGlobalCollateral(tok);
         assertFalse(cm.isAllowed(tok));
 
-        vm.prank(timelock);
         cm.unpauseGlobalCollateral(tok);
         assertTrue(cm.isAllowed(tok));
+        vm.stopPrank();
     }
 
     function testremoveGlobalCollateralResetsState() public {
@@ -165,11 +165,11 @@ contract CollateralManagerTest is Test {
 
         address tok = Core._newToken();
 
-        vm.prank(timelock);
+        vm.startPrank(timelock);
         cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
 
-        vm.prank(timelock);
         cm.removeGlobalCollateral(tok);
+        vm.stopPrank();
 
         CollateralConfig memory c = cm.getCollateral(tok);
         assertEq(c.id, 0);
@@ -185,8 +185,9 @@ contract CollateralManagerTest is Test {
         address tok = Core._newToken();
 
         vm.startPrank(user);
+        CollateralInput memory input = Core._collateralInput(tok, Core.COL_MODE_STABLE);
         vm.expectRevert();
-        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        cm.updateGlobalCollateral(input);
         vm.stopPrank();
     }
 
@@ -195,8 +196,9 @@ contract CollateralManagerTest is Test {
 
         address tok = Core._newToken();
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        vm.stopPrank();
 
         CollateralConfig memory c = cm.getCollateral(tok);
         assertEq(c.id, 1);

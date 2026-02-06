@@ -7,6 +7,8 @@ import "../../src/utils/ActionsLib.sol";
 import "../../src/PrivateCoin.sol";
 import "../../src/interfaces/IPrivateCoin.sol";
 import "../mocks/MockToken.sol";
+import "../mocks/MockOracle.sol";
+import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 library Core {
 
@@ -55,13 +57,17 @@ library Core {
 
     function _collateralInput(address token, uint256 mode)
         internal
-        pure
         returns (CollateralInput memory)
     {
+        MockAggregator m = new MockAggregator("x / y", 8);
+        m.setPrice(int(10 ** 8));
+
+        address[] memory feeds = new address[](1);
+        feeds[0] = address(m);
         return CollateralInput({
             tokenAddress: token,
             mode: mode,
-            oracleFeeds: new address[](3),
+            oracleFeeds: feeds,
             LTV: 50,
             liquidityThreshold: 80,
             debtCap: 1000
@@ -72,10 +78,14 @@ library Core {
         internal
         returns (CollateralInput memory)
     {
+        MockAggregator m = new MockAggregator("x / y", 8);
+        m.setPrice(int(10 ** 8));
+        address[] memory feeds = new address[](1);
+        feeds[0] = address(m);
         return CollateralInput({
             tokenAddress: _newToken(),
             mode: COL_MODE_STABLE,
-            oracleFeeds: new address[](3),
+            oracleFeeds: feeds,
             LTV: 50,
             liquidityThreshold: 80,
             debtCap: 1000
