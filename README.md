@@ -1,3 +1,43 @@
+## How To Deploy
+Example HardPeg contract already deployed on sepolia at address 0x3fe8A3760C2794A05e7e8EFBF41Ec831A0eb74F9.
+>Etherscan link to contract : https://sepolia.etherscan.io/address/0x3fe8a3760c2794a05e7e8efbf41ec831a0eb74f9#code
+
+1. Set env 
+```
+PRIVATE_KEY=
+OWNER=
+```
+* PRIVATE KEY = use your own (do not push it!) or run anvil and use one of their private keys
+* OWNER = any public address that you want to set as the owner. It is better to set a known account as there are some actions that can only be performed by the owner.
+
+2. Deploy
+There are diffrent options for deployment:
+ * Deploy on avil :
+```
+forge script DeployHardPeg
+```
+
+ * Simulate deployment on a chain :
+```
+forge script DeployHardPeg --rpc $RPC_SPEPOLIA
+```
+> This doesn't execute a real tx or spend money, you can use it to check reverts, or estimating deployment gas costs on chain.
+You can get the RPC providers from Alchemy
+
+* Deploy on chain : 
+
+```
+forge script DeployHardPeg --rpc $RPC_SPEPOLIA --broadcast --verify
+```
+
+3. Get the ABI
+```
+./out/testAll.sol/HardPeg.json
+```
+Every time you forge depoly the abi will be updated here. Use the abi from this specific json.
+
+
+
 ## Contracts
 > * /Core/shared/AccessManager     |--> DONE
 > * /Core/shared/CollateralManager |--> DONE
