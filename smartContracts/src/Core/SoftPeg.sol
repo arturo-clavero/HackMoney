@@ -17,7 +17,7 @@ struct Position {
     mapping(address token => uint256 shares) colShares;
     address[] colUsed;
     uint256 debtShares;
-    uint256 mintCredit;
+    // uint256 mintCredit;
 }
 struct ColVault {
     uint256 totalAssets;
@@ -87,43 +87,47 @@ contract SoftPeg is AppManager, Security, Oracle {
         vault.totalShares += newShare;
         pos.colShares[token] = currentShare + newShare;
 
-        //calc credit
-        uint256 credit_value = Math.mulDiv(valueAmount * getPrice(token), globalCollateralConfig[token].LTV,
-            WAD * 1e8
-        );
-        pos.mintCredit += credit_value;
     }
 
-    function getCredit(address token) external returns (uint256 rawCredit){
-        rawCredit = getPrice(token) * globalCollateralConfig[token].LTV / WAD;
-
+    function _getMintCredit(Position storage pos) internal returns (uint256 mintCredit) {
+        uint256 len = pos.colUsed.length;
+        for (uint256 i = 0; i < len; i++){
+            address token = pos.colUsed[i];
+            uint256 share = pos.colShares[token];
+            if (share == 0) continue;
+            ColVault storage vault = collateralVaults[token];
+            uint256 valueAmount = share.calcAssets(vault.totalShares, vault.totalAssets);
+            mintCredit += Math.mulDiv(valueAmount * getPrice(token), globalCollateralConfig[token].LTV,
+                WAD * 1e8
+            );
+        }
+        mintCredit -= pos.debtShares.calcAssets(totalDebtShares, totalDebt);
     }
 
     function mint(uint256 id, address to, uint256 rawAmount) public {
-        //How to calculate max debt extractable?
+        if (rawAmount == 0)
+            revert Error.InvalidAmount();
         //READ POSITION FROM MINTER
         Position storage minterPos = userPositions[id][msg.sender];
-        Position storage toPos = userPositions[id][to];
 
-        uint256 maxMintable_value = minterPos.mintCredit;
+        uint256 maxMintable_value = _getMintCredit(minterPos);
         if (rawAmount == type(uint256).max)
             rawAmount = maxMintable_value * DEFAULT_COIN_SCALE;
     
         uint256 newDebt_value = rawAmount / DEFAULT_COIN_SCALE;
 
-        if (maxMintable_value == 0 || newDebt_value > maxMintable_value)
+        if (maxMintable_value == 0 || rawAmount > maxMintable_value * DEFAULT_COIN_SCALE)
             revert Error.InsufficientCollateral();
         
         //calc share & update:
-        //increase user debt shares OF TO_POSITION!
+        //increase user debt shares OF MINTER_POSITION!
         //increase total debt shares
         //increase total debt
         //decrease the mint credits
         uint256 newShare = newDebt_value.calcNewShare(totalDebt, totalDebtShares);
-        toPos.debtShares += newShare;
+        minterPos.debtShares += newShare;
         totalDebtShares += newShare;
         totalDebt += newDebt_value;
-        minterPos.mintCredit -= newDebt_value;
 
         //mint
         _mintAppToken(id, to, rawAmount);
@@ -145,15 +149,27 @@ contract SoftPeg is AppManager, Security, Oracle {
         vault.totalAssets -= valueAmount;
         vault.totalShares -= shareOut;
         pos.colShares[token] -= shareOut;
-        if ( pos.colShares[token] == 0) {
-            //remove index from token efficiently... ?
+        if (pos.colShares[token] == 0) {
+            //not sure how
         }
 
-        //send collatearl 
         uint256 rawAmount = valueAmount * globalCollateralConfig[token].scale;
         IERC20(token).safeTransfer(msg.sender, rawAmount);
     }
 
+    function repay(uint256 id, uint256 rawAmount) external {
+        if (rawAmount == 0)
+            revert Error.InvalidAmount();
+        address token = _getAppConfig(id).coin;
+        uint256 valueAmount = rawAmount / DEFAULT_COIN_SCALE;
+
+        uint256 newDebtShare = valueAmount.calcNewShare(totalDebt, totalDebtShares);
+        userPositions[id][msg.sender].debtShares -= newDebtShare;
+        totalDebtShares -= newDebtShare;
+        totalDebt -= valueAmount;
+
+        _burnAppToken(id, rawAmount);
+    }
 
     // function redeam(address token, uint256 rawAmount) external {
     //     uint256 id = _getStablecoinID(token);
@@ -195,7 +211,8 @@ contract SoftPeg is AppManager, Security, Oracle {
     }
 
     function getUsersMintCredit(uint256 id, address user) external returns (uint256) {
-        return (userPositions[id][user].mintCredit);
+        Position storage pos = userPositions[id][user];
+        return _getMintCredit(pos);
     }
 
     function getCollateralVaults(address token) external returns (ColVault memory) {

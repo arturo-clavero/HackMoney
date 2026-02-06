@@ -148,7 +148,6 @@ abstract contract BaseEconomicTest is Test {
     }
 
     function _addTempAppInstance(address newAppOwner) internal returns (uint256 newAppId) {
-        bytes32 seed = keccak256(abi.encodePacked("app", block.timestamp));
         newAppId = _addApp(newAppOwner);
     }
 
@@ -182,6 +181,18 @@ abstract contract BaseEconomicTest is Test {
             tokensAddress[i] = address(tokens[i]);
         }
         AppInput memory input = Core._newAppInstanceInput(users, tokensAddress);
+        vm.startPrank(_appOwner);
+        id = peg.newInstance(input);
+        vm.stopPrank();
+    }
+
+    function _addSuperApp(address _appOwner) internal returns (uint256 id) {
+        address[] memory tokensAddress = new address[](totalTokens);
+        for (uint256 i = 0; i < totalTokens; i++){
+            tokensAddress[i] = address(tokens[i]);
+        }
+        AppInput memory input = Core._newAppInstanceInput(users, tokensAddress);
+        input.appActions |= Actions.HOLD;
         vm.startPrank(_appOwner);
         id = peg.newInstance(input);
         vm.stopPrank();

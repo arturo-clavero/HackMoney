@@ -13,7 +13,8 @@ interface IPeg {
     function withdrawCollateral(uint256 id, uint256 amount) external;
     //soft peg...
     function withdrawCollateral(uint256 id, address token, uint256 valueAmount) external;
-
+    function repay(uint256 id, uint256 rawAmount) external;
+    
     // accounting -hard
     function getTotalPool() external view returns (uint256);
     function getGlobalPool(address token) external view returns (uint256);
@@ -36,5 +37,4 @@ interface IPeg {
 
     //helpers - soft
     function getMaxLTV(uint256 id, address user) external returns (uint256) ;
-        function getCredit(address token) external returns (uint256 rawCredit);
 }
