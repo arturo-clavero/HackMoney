@@ -20,7 +20,7 @@ import {Error} from "../../utils/ErrorLib.sol";
  */
 abstract contract AccessManager {
 
-    uint256 internal constant WAD = 1e19;
+    uint256 internal constant WAD = 1e18;
     /**
      * @dev OWNER
      * Protocol owner with full administrative control.

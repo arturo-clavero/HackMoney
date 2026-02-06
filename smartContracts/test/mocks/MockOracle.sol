@@ -3,6 +3,10 @@ pragma solidity ^0.8.13;
 
 import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
 
+interface IMockOracle {
+    function setPrice(int256 price) external;
+}
+
 /**
  * @title MockAggregator
  * @notice Mock Chainlink price feed for testing

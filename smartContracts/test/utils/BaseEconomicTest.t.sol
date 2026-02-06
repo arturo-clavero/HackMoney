@@ -4,13 +4,19 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../../src/Core/HardPeg.sol";
 import {MockToken} from "../mocks/MockToken.sol";
+import {IMockOracle} from "../mocks/MockOracle.sol";
+import {Math} from "@openzeppelin/utils/math/Math.sol";
 import {IPeg} from "./IPeg.sol";
 import "./CoreLib.t.sol";
 import "@openzeppelin/utils/Strings.sol";
+import {Position, ColVault} from "../../src/Core/SoftPeg.sol";
+import {RiskMath} from "../../src/utils/RiskMathLib.sol";
 
 
 abstract contract BaseEconomicTest is Test {
     using Strings for uint256;
+    using RiskMath for uint256;
+
 
     IPeg peg;
 
@@ -23,7 +29,7 @@ abstract contract BaseEconomicTest is Test {
     address[] users;
     uint256[] usersPK;
     uint256 totalUsers;
-    uint256 globalDebtcap = 1000000;
+    uint256 globalDebtCap = 1000000;
     uint256 mintCapPerTx = 10000;
 
     mapping(uint256 id => address) appOwners;
@@ -35,7 +41,7 @@ abstract contract BaseEconomicTest is Test {
 
     // child test decides WHICH peg
     function _deployPeg() internal virtual returns (IPeg){
-        HardPeg hard = new HardPeg(owner, timelock, globalDebtcap, mintCapPerTx);
+        HardPeg hard = new HardPeg(owner, timelock, globalDebtCap, mintCapPerTx);
         return IPeg(address(hard));
     }
 
@@ -225,4 +231,85 @@ abstract contract BaseEconomicTest is Test {
             sum += IERC20(coin).totalSupply();
         }
     }
+
+    function _getPrice(address token) internal returns (uint256) {
+        return peg.getPrice(token);
+    }
+
+    function _setMockPrice(uint256 newPrice, address token) internal {
+        address feed = peg.getGlobalCollateral(token).oracleFeeds[0];
+        IMockOracle(feed).setPrice(int256(newPrice));
+    }
+
+    function _lowerAllPricesProRata(uint256 id, address user) internal {
+    address[] memory colUsed = peg.getUsersColUsed(id, user);
+
+    for (uint256 i = 0; i < colUsed.length; i++) {
+        _lowerPriceToLiquidate(id, user, colUsed[i]);
+    }
+}
+
+    function _lowerPriceToLiquidate(uint256 id, address user, address token
+    ) internal {
+        uint256 debt = peg.getUserDebtShares(id, user).calcAssets(
+            peg.getTotalDebtShares(),
+            peg.getTotalDebt()
+        );
+
+        uint256 colShares = peg.getUserColShares(id, user, token);
+        ColVault memory vault = peg.getCollateralVaults(token);
+
+        uint256 collateralAmount = colShares.calcAssets(
+            vault.totalShares,
+            vault.totalAssets
+        );
+
+        uint256 liqThreshold = peg.getGlobalCollateral(token).liquidityThreshold;
+
+        uint256 price = Math.mulDiv(
+            debt,
+            1e8,
+            Math.mulDiv(collateralAmount, liqThreshold, 1e18)
+        );
+
+        _setMockPrice(price - 1, token);
+    }
+
+    function _getMaxLiquidationAmount(uint256 id, address user) internal  returns (uint256 maxRawAmount) {
+        address[] memory colUsed = peg.getUsersColUsed(id, user);
+        uint256 len = colUsed.length;
+        uint256 requiredDebt;
+
+        for (uint256 i = 0; i < len; i++) {
+            address token = colUsed[i];
+            uint256 share = peg.getUserColShares(id, user, token);
+            if (share == 0) continue;
+
+            ColVault memory vault = peg.getCollateralVaults(token);
+            uint256 valueAmount = share.calcAssets(
+                vault.totalShares,
+                vault.totalAssets
+            );
+
+            uint256 price = _getPrice(token); // 1e8
+
+            requiredDebt += Math.mulDiv(
+                valueAmount * price,
+                peg.getGlobalCollateral(token).liquidityThreshold,
+                1e18 * 1e8
+            );
+        }
+
+        uint256 actualDebt = peg.getUserDebtShares(id, user).calcAssets(
+            peg.getTotalDebtShares(),
+            peg.getTotalDebt()
+        );
+
+        if (actualDebt <= requiredDebt) {
+            return 0;
+        }
+
+        maxRawAmount = (actualDebt - requiredDebt) * 1e18;
+    }
+
 }

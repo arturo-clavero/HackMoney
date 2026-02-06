@@ -14,4 +14,5 @@ library Error {
     error InvalidAmount();
     error InsufficientCollateral();
     error UserHasDebt();
+    error PositionIsHealthy();
 }   

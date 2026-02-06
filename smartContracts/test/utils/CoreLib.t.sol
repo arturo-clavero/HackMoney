@@ -91,7 +91,14 @@ library Core {
             debtCap: 1000
         });
     }
+//ltv 30 
+//In 600 >
+//Out 300 >
+// | 600 col | 300 debt |
+// | 400 col | 300 debt | 
+// 400 * 80 
 
+//collateral backed... and multiply by ltv 
     function _collateralInputWithFeed(address token, uint256 mode, address feed)
         internal
         pure

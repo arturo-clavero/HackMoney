@@ -1,7 +1,7 @@
 // src/interfaces/IPeg.sol
 pragma solidity ^0.8.13;
 
-import {CollateralInput} from "../../src/Core/shared/CollateralManager.sol";
+import {CollateralInput, CollateralConfig} from "../../src/Core/shared/CollateralManager.sol";
 import {AppInput} from "../../src/Core/shared/AppManager.sol";
 import {ColVault} from "../../src/Core/SoftPeg.sol";
 
@@ -11,10 +11,13 @@ interface IPeg {
     function mint(uint256 id, address to, uint256 amount) external;
     function redeam(address token, uint256 amount) external;
     function withdrawCollateral(uint256 id, uint256 amount) external;
+
     //soft peg...
     function withdrawCollateral(uint256 id, address token, uint256 valueAmount) external;
     function repay(uint256 id, uint256 rawAmount) external;
-    
+    function liquidate(uint256 id, address user, uint256 rawAmountIn) external;
+    function getPrice(address token) external view returns (uint256 price);
+
     // accounting -hard
     function getTotalPool() external view returns (uint256);
     function getGlobalPool(address token) external view returns (uint256);
@@ -27,14 +30,21 @@ interface IPeg {
     function getUsersColUsed(uint256 id, address user) external returns (address[] memory);
     function getCollateralVaults(address token) external returns (ColVault memory);
     function getUsersMintCredit(uint256 id, address user) external returns (uint256);
+    function getTotalDebtShares() external returns (uint256);
+    function getTotalDebt() external returns(uint256);
+
+
 
     // config
     function finishSetUp(address transferOwnership) external;
     function updateGlobalCollateral(CollateralInput calldata updatedCol) external;
+    function getGlobalCollateral(address token) external view returns (CollateralConfig memory);
     function addAppCollateral(uint256 appID, address token) external;
     function newInstance(AppInput calldata config) external returns (uint256 id);
     function getAppCoin(uint256 id) external view returns (address);
 
     //helpers - soft
     function getMaxLTV(uint256 id, address user) external returns (uint256) ;
+
+
 }

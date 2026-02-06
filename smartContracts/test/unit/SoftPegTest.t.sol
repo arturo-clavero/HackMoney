@@ -7,21 +7,25 @@ import "@openzeppelin/token/ERC20/ERC20.sol";
 
 import "../utils/BaseEconomicTest.t.sol";
 import {MockToken} from "../mocks/MockToken.sol";
+import {RiskMath} from "../../src/utils/RiskMathLib.sol";
 
 
 import "forge-std/console.sol";
 contract SoftPegUnitTest is BaseEconomicTest {
+        using RiskMath for uint256;
+
 
     uint256 ID;
     address minter;
     address user;
+    address liquidator;
     
     MockToken token6;
     MockToken token8;
     MockToken token18;
 
     function _deployPeg() internal override returns (IPeg){
-        SoftPeg soft = new SoftPeg(owner, timelock, globalDebtcap, mintCapPerTx);
+        SoftPeg soft = new SoftPeg(owner, timelock, globalDebtCap, mintCapPerTx);
         return IPeg(address(soft));
     }
 
@@ -48,6 +52,7 @@ contract SoftPegUnitTest is BaseEconomicTest {
 
         ID = appIDs[0];
         user = users[0];
+        liquidator = users[1];
         token6 = tokens[0];
         token8 = tokens[1];
         token18 = tokens[2];
@@ -325,6 +330,8 @@ contract SoftPegUnitTest is BaseEconomicTest {
         vm.stopPrank();
     }
 
+    
+
     function testRepay_fullDebt() public {
         uint256 newAppID = _addSuperApp(minter);
 
@@ -413,30 +420,233 @@ contract SoftPegUnitTest is BaseEconomicTest {
     function testMultiStepDepositMintWithdraw() public {
                 uint256 newAppID = _addSuperApp(minter);
 
-    //     _mintTokenTo(token6, 500, minter);
-    //     _mintTokenTo(token8, 500, minter);
+        _mintTokenTo(token6, 500, minter);
+        _mintTokenTo(token8, 500, minter);
 
-    //     vm.startPrank(minter);
-    //     peg.deposit(newAppID, address(token6), _raw(100, address(token6)));
-    //     peg.deposit(newAppID, address(token8), _raw(200, address(token8)));
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token6), _raw(100, address(token6)));
+        peg.deposit(newAppID, address(token8), _raw(200, address(token8)));
 
-    //     uint256 creditBefore = peg.getUsersMintCredit(newAppID, minter);
-    //     peg.mint(newAppID, minter, type(uint256).max);
-    //     assertEq(peg.getUsersMintCredit(newAppID, minter), 0);
+        uint256 creditBefore = peg.getUsersMintCredit(newAppID, minter);
+        peg.mint(newAppID, minter, type(uint256).max);
+        assertEq(peg.getUsersMintCredit(newAppID, minter), 0);
 
-    //     // partial withdraw fails because debt exists
-    //     vm.expectRevert(Error.UserHasDebt.selector);
-    //     peg.withdrawCollateral(newAppID, address(token6), 10);
+        // partial withdraw fails because debt exists
+        vm.expectRevert(Error.UserHasDebt.selector);
+        peg.withdrawCollateral(newAppID, address(token6), 10);
 
-    //     // simulate repay: reduce debt manually for test
-    //     uint256 debtShares = peg.getUserDebtShares(newAppID, minter);
-    //     peg._forceRepay(newAppID, minter, debtShares);
+        // simulate repay: reduce debt manually for test
+        uint256 debtShares = peg.getUserDebtShares(newAppID, minter);
+        peg.repay(newAppID, debtShares * 1e18);
 
-    //     // withdraw now works
-    //     peg.withdrawCollateral(newAppID, address(token6), 50);
-    //     uint256 shares6 = peg.getUserColShares(newAppID, minter, address(token6));
-    //     assertLt(shares6, 100);
-    //     vm.stopPrank();
+        // withdraw now works
+        peg.withdrawCollateral(newAppID, address(token6), 50);
+        uint256 shares6 = peg.getUserColShares(newAppID, minter, address(token6));
+        assertLt(shares6, 100);
+        vm.stopPrank();
     }
+
+    function testLiquidate_basic() public {
+        uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token18, 500, minter);
+
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
+        uint256 credit = peg.getUsersMintCredit(newAppID, minter);
+        peg.mint(newAppID, liquidator, _raw(100, address(0)));
+        peg.mint(newAppID, minter, _raw(100, address(0)));
+        vm.stopPrank();
+
+        uint256 liquidatorCoinBalanceBefore  = IERC20(peg.getAppCoin(newAppID)).balanceOf(liquidator);
+        uint256 liquidatorTokenBalanceBefore  = token18.balanceOf(liquidator);
+        uint256 userDebtBefore = peg.getUserDebtShares(newAppID, minter).calcAssets(peg.getTotalDebt(), peg.getTotalDebtShares());
+        uint256 userSharesBefore = peg.getUserColShares(newAppID, minter, address(token18));
+
+        // uint256 liq = peg.getGlobalCollateral(address(token18)).liquidityThreshold;
+        console.log("price before: ", _getPrice(address(token18)));
+        _lowerPriceToLiquidate(newAppID, minter, address(token18));
+        console.log("price after: ", _getPrice(address(token18)));
+
+        uint256 liquidationAmount = _getMaxLiquidationAmount(newAppID, minter);
+        vm.startPrank(liquidator);
+        peg.liquidate(newAppID, minter, liquidationAmount);
+        vm.stopPrank();
+
+        uint256 liquidatorCoinBalanceAfter  = IERC20(peg.getAppCoin(newAppID)).balanceOf(liquidator);
+        uint256 liquidatorTokenBalanceAfter = token18.balanceOf(liquidator);
+        uint256 userDebtAfter = peg.getUserDebtShares(newAppID, minter).calcAssets(peg.getTotalDebt(), peg.getTotalDebtShares()); 
+        uint256 userSharesAfter = peg.getUserColShares(newAppID, minter, address(token18));
+
+        assertLt(liquidatorCoinBalanceAfter, liquidatorCoinBalanceBefore);
+        assertGt(liquidatorTokenBalanceAfter, liquidatorTokenBalanceBefore);
+
+        assertLt(userDebtAfter, userDebtBefore);
+        assertLt(userSharesAfter, userSharesBefore);
+        vm.stopPrank();
+    }
+
+    function testLiquidate_healthyPositionReverts() public {
+        uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token18, 500, minter);
+
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
+        peg.mint(newAppID, liquidator, _raw(100, address(0)));
+            peg.mint(newAppID, minter, _raw(100, address(0)));
+        vm.stopPrank();
+
+        vm.startPrank(liquidator);
+        vm.expectRevert(Error.PositionIsHealthy.selector);
+        peg.liquidate(newAppID, minter, 1e18);
+        vm.stopPrank();
+    }
+
+    function testLiquidate_zeroAmountReverts() public {
+        uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token18, 500, minter);
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
+        peg.mint(newAppID, liquidator, _raw(100, address(0)));
+        peg.mint(newAppID, minter, _raw(100, address(0)));
+        vm.stopPrank();
+
+        vm.startPrank(liquidator);
+        vm.expectRevert(Error.InvalidAmount.selector);
+        peg.liquidate(newAppID, minter, 0);
+        vm.stopPrank();
+    }
+
+    function testLiquidate_partial() public {
+         uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token18, 600, minter);
+
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token18), _raw(600, address(token18)));
+        uint256 credit = peg.getUsersMintCredit(newAppID, minter);
+        peg.mint(newAppID, liquidator, _raw(300, address(0)));
+        vm.stopPrank();
+        _lowerPriceToLiquidate(newAppID, minter, address(token18));
+        uint256 liquidationAmount = 100 * 1e18;
+        vm.startPrank(liquidator);
+        peg.liquidate(newAppID, minter, liquidationAmount);
+        vm.stopPrank();
+
+        vm.expectRevert();
+        peg.liquidate(newAppID, minter, liquidationAmount);
+        vm.stopPrank();
+
+    }
+
+    function testLiquidate_overpayCapped() public {
+
+        uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token18, 500, minter);
+
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
+        peg.mint(newAppID, liquidator, _raw(100, address(0)));
+        peg.mint(newAppID, minter, _raw(100, address(0)));
+        vm.stopPrank();
+
+        _lowerPriceToLiquidate(newAppID, minter, address(token18));
+
+        uint256 maxLiq = _getMaxLiquidationAmount(newAppID, minter);
+        uint256 debtBefore =
+            peg.getUserDebtShares(newAppID, minter)
+                .calcAssets(peg.getTotalDebt(), peg.getTotalDebtShares());
+
+        vm.startPrank(liquidator);
+        peg.liquidate(newAppID, minter, maxLiq * 2);
+        vm.stopPrank();
+
+uint256 debtAfter =
+    peg.getUserDebtShares(newAppID, minter)
+                .calcAssets(peg.getTotalDebt(), peg.getTotalDebtShares());
+        uint256 debtChange = 1e18 * (debtBefore - debtAfter);
+
+       
+        assertLe(debtChange, maxLiq + 1);
+assertGe(debtChange, maxLiq);
+    }
+
+//NOT WORKING
+    function testLiquidate_liquidatorGetsCollateral() public {
+        uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token18, 500, minter);
+
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
+        peg.mint(newAppID, liquidator, _raw(100, address(0)));
+        peg.mint(newAppID, minter, _raw(100, address(0)));
+        vm.stopPrank();
+
+        _lowerPriceToLiquidate(newAppID, minter, address(token18));
+
+        uint256 balBefore = token18.balanceOf(liquidator);
+
+        vm.startPrank(liquidator);
+        peg.liquidate(newAppID, minter, _getMaxLiquidationAmount(newAppID, minter));
+        vm.stopPrank();
+
+        uint256 balAfter = token18.balanceOf(liquidator);
+        assertGt(balAfter, balBefore);
+    }
+
+    function testLiquidate_multiCollateral() public {
+        uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token6, 700, minter);
+        _mintTokenTo(token8, 900, minter);
+
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token6), _raw(700, address(token6)));
+        peg.deposit(newAppID, address(token8), _raw(900, address(token8)));
+        peg.mint(newAppID, liquidator, _raw(700, address(0)));
+        peg.mint(newAppID, minter, _raw(50, address(0)));
+        vm.stopPrank();
+
+        uint256 p1b = peg.getPrice(address(token6));
+        uint256 p2b = peg.getPrice(address(token8));
+        _setMockPrice(p1b * 50 / 100, address(token8));
+        _setMockPrice(p2b * 60 / 100, address(token6));
+
+        uint256 p1a = peg.getPrice(address(token6));
+        uint256 p2a = peg.getPrice(address(token8));
+
+        uint256 s6Before = peg.getUserColShares(newAppID, minter, address(token6));
+        uint256 s8Before = peg.getUserColShares(newAppID, minter, address(token8));
+
+        console.log("token [6] : ", p1b, "->", p1a);
+        console.log("token [8] : ", p2b, "->", p2a);
+        vm.startPrank(liquidator);
+        peg.liquidate(newAppID, minter, 700e18);
+        vm.stopPrank();
+
+        assertTrue(
+            peg.getUserColShares(newAppID, minter, address(token6)) < s6Before || peg.getUserColShares(newAppID, minter, address(token8)) < s8Before
+        );
+    }
+
+    function testLiquidate_invariant_totalDebtDecreases() public {
+        uint256 newAppID = _addSuperApp(minter);
+        _mintTokenTo(token18, 500, minter);
+
+        vm.startPrank(minter);
+        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
+        peg.mint(newAppID, liquidator, _raw(100, address(0)));
+        peg.mint(newAppID, minter, _raw(100, address(0)));
+        vm.stopPrank();
+
+        _lowerPriceToLiquidate(newAppID, minter, address(token18));
+
+        uint256 totalDebtBefore = peg.getTotalDebt();
+
+        vm.startPrank(liquidator);
+        peg.liquidate(newAppID, minter, _getMaxLiquidationAmount(newAppID, minter));
+        vm.stopPrank();
+
+        assertLt(peg.getTotalDebt(), totalDebtBefore);
+    }
+
+
 
 }

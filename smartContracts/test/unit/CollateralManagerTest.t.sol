@@ -136,7 +136,7 @@ contract CollateralManagerTest is Test {
         vm.stopPrank();
 
         assertEq(cm.getCollateral(tok).id, 1);
-        assertEq(cm.getCollateral(tok).LTV, 60 * 1e19 / 100);
+        assertEq(cm.getCollateral(tok).LTV, 60 * 1e18 / 100);
     }
 
     function testPauseAndUnpause() public {

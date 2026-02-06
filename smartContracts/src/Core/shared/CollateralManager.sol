@@ -121,7 +121,7 @@ abstract contract CollateralManager is AccessManager {
         c.mode = updatedCol.mode | MODE_ACTIVE;
         c.oracleFeeds = updatedCol.oracleFeeds;
         c.LTV = updatedCol.LTV * WAD / 100;
-        c.liquidityThreshold = updatedCol.liquidityThreshold;
+        c.liquidityThreshold = updatedCol.liquidityThreshold * WAD / 100;
         c.debtCap = updatedCol.debtCap;
     }    
         

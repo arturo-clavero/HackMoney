@@ -56,9 +56,6 @@ contract HardPeg is AppManager, Security {
     CollateralManager(0) 
     Security(globalDebtcap, mintCapPerTx)
     {}
-    //for medium peg = stable + yield
-    //collateral manager(1) --> model will accept colalteral of type yield
-    //for medium peeg its recommended you look at erc4246 vaults to calcualte the yield for you
 
     /**
      * @notice Deposit collateral into the app

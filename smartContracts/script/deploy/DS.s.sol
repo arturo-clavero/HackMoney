@@ -2,13 +2,13 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import {HardPeg} from "./testAll.sol";
+import {SoftPeg} from "../../../src/Core/SoftPeg.sol";
 import "../../../src/Y_Timelock.sol";
 import "../../../src/Core/shared/CollateralManager.sol";
 import "../../../test/utils/CoreLib.t.sol";
 
 //Update timelock deployment & adding protocol inside timelock
-contract DeployHardPeg is Script {
+contract DS is Script {
     function run() external {
         uint256 deployerPK = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPK);
@@ -22,7 +22,7 @@ contract DeployHardPeg is Script {
         address owner = vm.envAddress("OWNER");
         uint256 globalDebtCap = 5_000_000 ether;
         uint256 mintCapPerTx = 1_000 ether;
-        HardPeg protocol = new HardPeg(
+        SoftPeg protocol = new SoftPeg(
             deployer,
             address(timelock),
             globalDebtCap,
