@@ -173,6 +173,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     loadingBalancesChainId,
     load: loadTokens,
     loadBalancesForChain,
+    loadAllBalances,
   } = useLifiTokens(address);
 
   const {
@@ -267,7 +268,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
           priceUSD: "1",
           logoURI: "",
           amount: arcUsdcBalance ?? BigInt(0),
-        } as TokenAmount,
+        } as unknown as TokenAmount,
       ];
     }
     // Arb Sepolia USDC
@@ -282,7 +283,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
           priceUSD: "1",
           logoURI: "",
           amount: arbSepoliaUsdcBalance ?? BigInt(0),
-        } as TokenAmount,
+        } as unknown as TokenAmount,
       ];
     }
     return merged;
@@ -818,8 +819,8 @@ export function DepositFlow({ appId }: { appId: bigint }) {
         tokensByChain={allTokensByChain}
         isLoading={tokensLoading}
         loadBalancesForChain={loadBalancesForChain}
+        loadAllBalances={loadAllBalances}
         loadingBalancesChainId={loadingBalancesChainId}
-        connectedChainId={walletChainId}
       />
     </div>
   );

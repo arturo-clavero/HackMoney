@@ -12,6 +12,7 @@ import {
   type ExtendedChain,
   type Token,
   type TokenAmount,
+  type TokenExtended,
   type Route,
   type RouteExtended,
   type LiFiStep,
@@ -87,6 +88,7 @@ export function useLifiTokens(walletAddress: string | undefined) {
           orderBy: "volumeUSD24H",
           limit: 50,
           minPriceUSD: 0.01,
+          extended: true,
         }),
       ]);
       setChains(evmChains);
@@ -94,25 +96,42 @@ export function useLifiTokens(walletAddress: string | undefined) {
 
       const mapped: Record<number, TokenAmount[]> = {};
       for (const [cid, tokens] of Object.entries(allTokens)) {
-        mapped[Number(cid)] = tokens.map((t) => ({ ...t, amount: BigInt(0) }));
+        mapped[Number(cid)] = tokens.map((t) => ({
+          ...t,
+          amount: BigInt(0),
+        }));
       }
 
-      // Preload balances for connected chain inline — no race condition
+      // Show tokens immediately with zero balances
+      setTokensByChain(mapped);
+      setIsLoading(false);
+
+      // Preload balances for connected chain in the background (non-blocking)
       const wallet = walletRef.current;
       if (wallet && preloadBalanceChain && mapped[preloadBalanceChain]?.length) {
-        try {
-          const balances = await getTokenBalances(wallet, mapped[preloadBalanceChain]);
-          mapped[preloadBalanceChain] = mergeBalances(mapped[preloadBalanceChain], balances);
-          balancesLoaded.current.add(preloadBalanceChain);
-        } catch {
-          // Balance preload failed — tokens still show with 0 balance
-        }
+        balancesLoaded.current.add(preloadBalanceChain);
+        setLoadingBalancesChainId(preloadBalanceChain);
+        getTokenBalances(wallet, mapped[preloadBalanceChain])
+          .then((balances) => {
+            setTokensByChain((prev) => ({
+              ...prev,
+              [preloadBalanceChain]: mergeBalances(
+                prev[preloadBalanceChain] ?? [],
+                balances
+              ),
+            }));
+          })
+          .catch(() => {
+            balancesLoaded.current.delete(preloadBalanceChain);
+          })
+          .finally(() => {
+            setLoadingBalancesChainId((prev) =>
+              prev === preloadBalanceChain ? null : prev
+            );
+          });
       }
-
-      setTokensByChain(mapped);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load tokens");
-    } finally {
       setIsLoading(false);
     }
   }, []);
@@ -146,7 +165,33 @@ export function useLifiTokens(walletAddress: string | undefined) {
     [walletAddress]
   );
 
-  return { chains, tokensByChain, isLoading, loadingBalancesChainId, error, load, loadBalancesForChain };
+  // Load balances for all chains progressively (non-blocking)
+  const loadAllBalances = useCallback(async () => {
+    const wallet = walletRef.current;
+    if (!wallet) return;
+    const allChainTokens = tokensRef.current;
+    const chainIds = Object.keys(allChainTokens).map(Number);
+    // Fire all chain balance fetches in parallel
+    await Promise.allSettled(
+      chainIds.map(async (chainId) => {
+        if (balancesLoaded.current.has(chainId)) return;
+        const tokens = allChainTokens[chainId];
+        if (!tokens?.length) return;
+        balancesLoaded.current.add(chainId);
+        try {
+          const balances = await getTokenBalances(wallet, tokens);
+          setTokensByChain((prev) => ({
+            ...prev,
+            [chainId]: mergeBalances(prev[chainId] ?? [], balances),
+          }));
+        } catch {
+          balancesLoaded.current.delete(chainId);
+        }
+      })
+    );
+  }, [walletAddress]);
+
+  return { chains, tokensByChain, isLoading, loadingBalancesChainId, error, load, loadBalancesForChain, loadAllBalances };
 }
 
 // ─── Quoting ────────────────────────────────────────────────────────────────

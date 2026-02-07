@@ -6,9 +6,10 @@ import { useAppKitAccount } from "@reown/appkit/react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
+  useSwitchChain,
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
-import { getContractAddress } from "@/contracts/addresses";
+import { getContractAddress, ARC_CHAIN_ID } from "@/contracts/addresses";
 import { Actions } from "@/contracts/actions";
 import { decodeEventLog } from "viem";
 import { useEffect, useState } from "react";
@@ -31,6 +32,9 @@ export function StepDeploy() {
   const appActions = Actions.MINT | Actions.HOLD;
   const userActions =
     Actions.HOLD | Actions.TRANSFER_DEST | (state.usersCanMint ? Actions.MINT : BigInt(0));
+
+  const { switchChain } = useSwitchChain();
+  const wrongNetwork = !contractAddress;
 
   const { writeContract, data: txHash, isPending, error: writeError } = useWriteContract();
 
@@ -187,12 +191,21 @@ export function StepDeploy() {
             </span>{" "}
             token contract.
           </p>
-          <button
-            onClick={deploy}
-            className="rounded-lg bg-blue-600 px-8 py-4 text-lg font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            Deploy Instance
-          </button>
+          {wrongNetwork ? (
+            <button
+              onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
+              className="rounded-lg bg-amber-500 px-8 py-4 text-lg font-medium text-white transition-colors hover:bg-amber-600"
+            >
+              Switch to Arc Testnet
+            </button>
+          ) : (
+            <button
+              onClick={deploy}
+              className="rounded-lg bg-blue-600 px-8 py-4 text-lg font-medium text-white transition-colors hover:bg-blue-700"
+            >
+              Deploy Instance
+            </button>
+          )}
         </>
       )}
     </div>
