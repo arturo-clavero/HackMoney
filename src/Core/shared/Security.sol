@@ -34,7 +34,6 @@ abstract contract Security is AccessManager{
     bool private withdrawPaused;
     uint256 private globalDebtCap;
     uint256 private mintCapPerTransaction;
-    uint256 public totalDebt; // total across the protocol
 
     event MintPaused(address indexed by);
     // event MintUnpaused(address indexed by);
@@ -73,15 +72,13 @@ abstract contract Security is AccessManager{
     }
 
      /// @notice security gate for the peg
-    function beforeMint(uint256 valueAmount) internal {
+    function beforeMint(uint256 currentDebt, uint256 mintAmount) internal view{
         if (mintPaused) revert MintIsPaused();
-        if (valueAmount == 0) revert InvalidAmount();
-        if (valueAmount > mintCapPerTransaction)
+        if (mintAmount == 0) revert InvalidAmount();
+        if (mintAmount > mintCapPerTransaction)
             revert CapExceeded();
-        uint256 newDebt = totalDebt + valueAmount;
-        if (newDebt > globalDebtCap)
+        if (currentDebt + mintAmount > globalDebtCap)
             revert GlobalCapExceeded();
-        totalDebt = newDebt;
     }
     /// @notice Pauses minting. Can only be called by the owner.
     function pauseMint() external onlyOwner {

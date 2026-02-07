@@ -11,4 +11,6 @@ library Error {
     error InvalidTokenAddress();
     error InvalidMode();
     error InvalidAmount();
+    error OutstandingDebt();
+    error CapExceeded();
 }
