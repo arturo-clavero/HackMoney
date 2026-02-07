@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../../src/Core/shared/CollateralManager.sol";
-import "../../src/Core/shared/AppManager.sol";
+import "../../src/core/shared/CollateralManager.sol";
+import "../../src/core/shared/AppManager.sol";
 import "../../src/utils/ActionsLib.sol";
 import "../../src/PrivateCoin.sol";
 import "../../src/interfaces/IPrivateCoin.sol";
@@ -10,7 +10,7 @@ import "../mocks/MockToken.sol";
 import "../mocks/MockOracle.sol";
 import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
-library Core {
+library core {
 
 //PC users ACTIONS
     uint256 constant defaultUserAction = Actions.HOLD | Actions.TRANSFER_DEST;
@@ -32,8 +32,8 @@ library Core {
         input = AppInput({
             name: "TestCoin",
             symbol: "TC",
-            appActions: Core.defaultAppAction, //allowing apps to mint to users
-            userActions: Core.defaultUserAction, //allwoing users to hold and transfer
+            appActions: core.defaultAppAction, //allowing apps to mint to users
+            userActions: core.defaultUserAction, //allwoing users to hold and transfer
             users: new address[](0),
             tokens: new address[](0)
         });
@@ -45,8 +45,8 @@ library Core {
         input = AppInput({
             name: "TestCoin",
             symbol: "TC",
-            appActions: Core.defaultAppAction,
-            userActions: Core.defaultUserAction,
+            appActions: core.defaultAppAction,
+            userActions: core.defaultUserAction,
             users: users,
             tokens: tokens
         });

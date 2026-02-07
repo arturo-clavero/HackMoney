@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import "../../../src/Core/HardPeg.sol";
+import "../../../src/core/HardPeg.sol";
 import "../../../src/Y_Timelock.sol";
-import "../../../src/Core/shared/CollateralManager.sol";
+import "../../../src/core/shared/CollateralManager.sol";
 
 /**
  * @notice Arc testnet deployment script.

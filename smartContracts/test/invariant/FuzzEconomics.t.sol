@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/HardPeg.sol";
+import "../../src/core/HardPeg.sol";
 import "../utils/BaseEconomicTest.t.sol";
 import "../mocks/MockRandomOracle.sol";
 import {MockToken} from "../mocks/MockToken.sol";
@@ -214,7 +214,7 @@ abstract contract FuzzEconomicTest is BaseEconomicTest {
 
         uint256 amount = _random(bal, t) + 1;
         vm.startPrank(user);
-        try peg.redeam(coin, amount) {} catch {}
+        try peg.redeem(coin, amount) {} catch {}
         vm.stopPrank();
     }
 

@@ -16,4 +16,7 @@ library Error {
     error UserHasDebt();
     error PositionIsHealthy();
     error LiquidationDust();
+    error CapExceeded();
+    error OutstandingDebt();
+
 }   

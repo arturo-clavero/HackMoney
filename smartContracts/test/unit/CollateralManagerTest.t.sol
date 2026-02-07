@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/shared/CollateralManager.sol";
-import "../../src/Core/shared/AccessManager.sol";
+import "../../src/core/shared/CollateralManager.sol";
+import "../../src/core/shared/AccessManager.sol";
 import "../utils/CoreLib.t.sol";
 
 contract CollateralHarness is CollateralManager {
@@ -36,21 +36,21 @@ contract CollateralManagerTest is Test {
 //constructor
     function testHardPegAllowsStableOnly() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_HARD);
+            new CollateralHarness(owner, timelock, core.PEG_HARD);
         vm.prank(owner);
         cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
         vm.startPrank(timelock);
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_STABLE);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_STABLE);
         cm.updateGlobalCollateral(input);
 
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_YIELD);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_YIELD);
         vm.expectRevert();
         cm.updateGlobalCollateral(input);
 
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_VOLATILE);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_VOLATILE);
         vm.expectRevert();
         cm.updateGlobalCollateral(input);
 
@@ -59,20 +59,20 @@ contract CollateralManagerTest is Test {
 
     function testMedPegAllowsStableAndYield() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_MED);
+            new CollateralHarness(owner, timelock, core.PEG_MED);
         vm.prank(owner);
         cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
         vm.startPrank(timelock);
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_STABLE);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_STABLE);
         cm.updateGlobalCollateral(input);
 
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_YIELD);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_YIELD);
         cm.updateGlobalCollateral(input);
 
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_VOLATILE);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_VOLATILE);
         vm.expectRevert();
         cm.updateGlobalCollateral(input);
 
@@ -81,21 +81,21 @@ contract CollateralManagerTest is Test {
 
     function testSoftPegAllowsStableAndVolatile() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_SOFT);
+            new CollateralHarness(owner, timelock, core.PEG_SOFT);
         vm.prank(owner);
         cm.finishSetUp(address(0));
 
         CollateralInput memory input;
 
         vm.startPrank(timelock);
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_STABLE);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_STABLE);
         cm.updateGlobalCollateral(input);
 
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_YIELD);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_YIELD);
         vm.expectRevert();
         cm.updateGlobalCollateral(input);
 
-        input = Core._collateralInput(Core._newToken(), Core.COL_MODE_VOLATILE);
+        input = core._collateralInput(core._newToken(), core.COL_MODE_VOLATILE);
         cm.updateGlobalCollateral(input);
 
         vm.stopPrank();
@@ -105,31 +105,31 @@ contract CollateralManagerTest is Test {
 
     function testAddCollateralAssignsIdAndActivates() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_HARD);
+            new CollateralHarness(owner, timelock, core.PEG_HARD);
         vm.prank(owner);
         cm.finishSetUp(address(0));
 
-        address tok = Core._newToken();
+        address tok = core._newToken();
         vm.startPrank(timelock);
-        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        cm.updateGlobalCollateral(core._collateralInput(tok, core.COL_MODE_STABLE));
         vm.stopPrank();
 
         CollateralConfig memory c = cm.getCollateral(tok);
         assertEq(c.id, 1);
-        assertTrue(c.mode & Core.COL_MODE_ACTIVE != 0);
+        assertTrue(c.mode & core.COL_MODE_ACTIVE != 0);
     }
 
     function testUpdateKeepsSameId() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_HARD);
+            new CollateralHarness(owner, timelock, core.PEG_HARD);
         vm.prank(owner);
         cm.finishSetUp(address(0));
 
-        address tok = Core._newToken();
+        address tok = core._newToken();
         vm.startPrank(timelock);
-        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        cm.updateGlobalCollateral(core._collateralInput(tok, core.COL_MODE_STABLE));
 
-        CollateralInput memory updated = Core._collateralInput(tok, Core.COL_MODE_STABLE);
+        CollateralInput memory updated = core._collateralInput(tok, core.COL_MODE_STABLE);
         updated.LTV = 60;
 
         cm.updateGlobalCollateral(updated);
@@ -141,13 +141,13 @@ contract CollateralManagerTest is Test {
 
     function testPauseAndUnpause() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_HARD);
+            new CollateralHarness(owner, timelock, core.PEG_HARD);
         vm.prank(owner);
         cm.finishSetUp(address(0));
         
-        address tok = Core._newToken();
+        address tok = core._newToken();
         vm.startPrank(timelock);
-        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        cm.updateGlobalCollateral(core._collateralInput(tok, core.COL_MODE_STABLE));
 
         cm.pauseGlobalCollateral(tok);
         assertFalse(cm.isAllowed(tok));
@@ -159,14 +159,14 @@ contract CollateralManagerTest is Test {
 
     function testremoveGlobalCollateralResetsState() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_HARD);
+            new CollateralHarness(owner, timelock, core.PEG_HARD);
         vm.prank(owner);
         cm.finishSetUp(address(0));
 
-        address tok = Core._newToken();
+        address tok = core._newToken();
 
         vm.startPrank(timelock);
-        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        cm.updateGlobalCollateral(core._collateralInput(tok, core.COL_MODE_STABLE));
 
         cm.removeGlobalCollateral(tok);
         vm.stopPrank();
@@ -178,31 +178,31 @@ contract CollateralManagerTest is Test {
 
     function testOnlyTimelockCanMutate() public {
         CollateralHarness cm =
-            new CollateralHarness(owner, timelock, Core.PEG_HARD);
+            new CollateralHarness(owner, timelock, core.PEG_HARD);
         vm.prank(owner);
         cm.finishSetUp(address(0));
 
-        address tok = Core._newToken();
+        address tok = core._newToken();
 
         vm.startPrank(user);
-        CollateralInput memory input = Core._collateralInput(tok, Core.COL_MODE_STABLE);
+        CollateralInput memory input = core._collateralInput(tok, core.COL_MODE_STABLE);
         vm.expectRevert();
         cm.updateGlobalCollateral(input);
         vm.stopPrank();
     }
 
     function testOwnerCanUpdateCollateral_PreSetup() public {
-        CollateralHarness cm = new CollateralHarness(owner, timelock, Core.PEG_HARD);
+        CollateralHarness cm = new CollateralHarness(owner, timelock, core.PEG_HARD);
 
-        address tok = Core._newToken();
+        address tok = core._newToken();
 
         vm.startPrank(owner);
-        cm.updateGlobalCollateral(Core._collateralInput(tok, Core.COL_MODE_STABLE));
+        cm.updateGlobalCollateral(core._collateralInput(tok, core.COL_MODE_STABLE));
         vm.stopPrank();
 
         CollateralConfig memory c = cm.getCollateral(tok);
         assertEq(c.id, 1);
-        assertTrue(c.mode & Core.COL_MODE_ACTIVE != 0);
+        assertTrue(c.mode & core.COL_MODE_ACTIVE != 0);
     }
 
 }

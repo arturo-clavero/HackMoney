@@ -6,8 +6,6 @@ import {CollateralManager} from "./shared/CollateralManager.sol";
 import {Security} from "./shared/Security.sol";
 import {AppManager, AppConfig} from "./shared/AppManager.sol";
 
-import {RiskEngine} from "./../utils/RiskEngineLib.sol";
-
 import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IERC4626} from "@openzeppelin/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
@@ -25,7 +23,7 @@ import {Error} from "../utils/ErrorLib.sol";
     // appId-> user->position collateral
     mapping(uint256 => mapping (address => Position)) internal positions;
     // //total stablecoins minted per app
-    mapping(uint256 => uint256) internal totalDebt;
+    mapping(uint256 => uint256) internal _totalDebtPerApp;
     //per user 
     mapping(uint256 => mapping (address => uint256)) userDebt;
     //appId-> vault4626  vault as collateral 
@@ -61,20 +59,28 @@ import {Error} from "../utils/ErrorLib.sol";
         uint256 appId,
         uint256 assets)
      external {
+        depositTo(appId, msg.sender, assets);
+    }
+
+    function depositTo(
+        uint256 appId,
+        address to,
+        uint256 assets)
+     public {
     // @notice vault grows principal stayes unchanged
         address vault = vaults[appId];
         if (vault == address(0)) revert Error.InvalidTokenAddress();
         IERC20 asset = IERC20(IERC4626(vault).asset());
-        asset.safeTransferFrom(msg.sender, address(this), assets);
+        asset.safeTransferFrom(to, address(this), assets);
         asset.approve(vault, assets);
         uint256 shares = IERC4626(vault).deposit(assets, address(this));
         uint256 valueAtDeposit = IERC4626(vault).convertToAssets(shares);
-        Position storage p = positions[appId][msg.sender];
+        Position storage p = positions[appId][to];
         p.principals += valueAtDeposit;
         p.shares += shares;
-
-
     }
+
+
     // @notice mints stavlecoin against their deposit. Mint against depositedvalue(not cuurent )
     // @dev mint is only based on principal (yields ignored)
     function mint(
@@ -86,7 +92,7 @@ import {Error} from "../utils/ErrorLib.sol";
         uint256 available = p.principals - userDebt[appId][msg.sender];
         if (amount > available) revert Error.CapExceeded();
         userDebt[appId][msg.sender] += amount;
-        totalDebt[appId] += amount;//for redeem
+        _totalDebtPerApp[appId] += amount;//for redeem
         _mintAppToken(appId, to, amount);
     }
     //@notice burns to get collateral back 
@@ -99,14 +105,18 @@ import {Error} from "../utils/ErrorLib.sol";
         if (userDebt[appId][msg.sender] < amount) revert Error.CapExceeded();
         _burnAppToken(appId, amount);
         userDebt[appId][msg.sender] -= amount;
-        totalDebt[appId] -= amount;
+        _totalDebtPerApp[appId] -= amount;
         IERC4626(vaults[appId]).withdraw(amount, msg.sender, address(this));
     }
     // @notice user withdraws unused collateral 
     // @dev only if no stablecoin debt exists 
     function withdrawCollateral(uint256 appId) external {
-        Position storage p = positions[appId][msg.sender];
-        if (userDebt[appId][msg.sender] != 0) revert Error.OutstandingDebt();
+        withdrawCollateralTo(appId, msg.sender);
+    }
+
+    function withdrawCollateralTo(uint256 appId, address to) public {
+        Position storage p = positions[appId][to];
+        if (userDebt[appId][to] != 0) revert Error.OutstandingDebt();
         uint256 shares = p.shares;
         if (shares == 0) revert Error.InvalidAmount();
 
@@ -115,13 +125,14 @@ import {Error} from "../utils/ErrorLib.sol";
 
         IERC4626(vaults[appId]).redeem(
             shares,
-            msg.sender,
+            to,
             address(this)
         );
     }
 
-    function getTotalDebt(uint256 appId) external view returns(uint256 ) {
-        return totalDebt[appId];
+
+    function getTotalDebtPerApp(uint256 appId) external view returns(uint256 ) {
+        return _totalDebtPerApp[appId];
     }
     function getPosition (uint256 appId, address user) 
         external view returns(uint256 principal, uint256 shares){

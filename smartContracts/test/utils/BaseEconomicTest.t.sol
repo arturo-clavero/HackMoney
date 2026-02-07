@@ -2,14 +2,14 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/HardPeg.sol";
+import "../../src/core/HardPeg.sol";
 import {MockToken} from "../mocks/MockToken.sol";
 import {IMockOracle} from "../mocks/MockOracle.sol";
 import {Math} from "@openzeppelin/utils/math/Math.sol";
 import {IPeg} from "./IPeg.sol";
 import "./CoreLib.t.sol";
 import "@openzeppelin/utils/Strings.sol";
-import {Position, ColVault} from "../../src/Core/SoftPeg.sol";
+import {Position, ColVault} from "../../src/core/SoftPeg.sol";
 import {RiskMath} from "../../src/utils/RiskMathLib.sol";
 
 
@@ -124,13 +124,13 @@ abstract contract BaseEconomicTest is Test {
     function _addGlobalCollateral(uint256 mode, uint8 decimals) internal returns (MockToken token) {
         token = new MockToken(decimals);
         vm.startPrank(timelock);
-        peg.updateGlobalCollateral(Core._collateralInput(address(token), mode));
+        peg.updateGlobalCollateral(core._collateralInput(address(token), mode));
         vm.stopPrank();
     }
 
     function _addGlobalCollateral(address token, uint256 mode) internal {
         vm.startPrank(timelock);
-        peg.updateGlobalCollateral(Core._collateralInput(token, mode));
+        peg.updateGlobalCollateral(core._collateralInput(token, mode));
         vm.stopPrank();
     }
 
@@ -139,7 +139,7 @@ abstract contract BaseEconomicTest is Test {
         try peg.addAppCollateral(id, token) {
         } catch {
             // failed, probably because token is not global yet
-            _addGlobalCollateral(token, Core.COL_MODE_STABLE);
+            _addGlobalCollateral(token, core.COL_MODE_STABLE);
             vm.prank(appOwners[id]);
             peg.addAppCollateral(id, token);
         }
@@ -150,7 +150,7 @@ abstract contract BaseEconomicTest is Test {
         try peg.addAppCollateral(id, token) {
         } catch {
             // failed, probably because token is not global yet
-            _addGlobalCollateral(token, Core.COL_MODE_STABLE);
+            _addGlobalCollateral(token, core.COL_MODE_STABLE);
             vm.prank(newAppOwner);
             peg.addAppCollateral(id, token);
         }
@@ -189,7 +189,7 @@ abstract contract BaseEconomicTest is Test {
         for (uint256 i = 0; i < totalTokens; i++){
             tokensAddress[i] = address(tokens[i]);
         }
-        AppInput memory input = Core._newAppInstanceInput(users, tokensAddress);
+        AppInput memory input = core._newAppInstanceInput(users, tokensAddress);
         vm.startPrank(_appOwner);
         id = peg.newInstance(input);
         vm.stopPrank();
@@ -200,7 +200,7 @@ abstract contract BaseEconomicTest is Test {
         for (uint256 i = 0; i < totalTokens; i++){
             tokensAddress[i] = address(tokens[i]);
         }
-        AppInput memory input = Core._newAppInstanceInput(users, tokensAddress);
+        AppInput memory input = core._newAppInstanceInput(users, tokensAddress);
         input.appActions |= Actions.HOLD;
         vm.startPrank(_appOwner);
         id = peg.newInstance(input);

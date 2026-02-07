@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/HardPeg.sol";
+import "../../src/core/HardPeg.sol";
 import "../utils/BaseEconomicTest.t.sol";
 import {MockToken} from "../mocks/MockToken.sol";
 
@@ -23,7 +23,7 @@ contract HardPegUnitTest is BaseEconomicTest {
         uint256[] memory modes = new uint256[](_totalTokens);
         uint8[] memory decimals = new uint8[](_totalTokens);
         for (uint256 i = 0 ; i < _totalTokens; i++){
-            modes[i] = Core.COL_MODE_STABLE;
+            modes[i] = core.COL_MODE_STABLE;
             if (i + 2 % 4 == 0) decimals[i] = 18;
             else if (i + 2 % 3 == 0) decimals[i] = 9;
             else if (i + 2 % 2 == 0) decimals[i] = 8;
@@ -131,7 +131,7 @@ contract HardPegUnitTest is BaseEconomicTest {
         vm.stopPrank();
     }
 
-    //redeam :
+    //redeem :
     function testRedeemProRata() public {
         uint256 usdcBefore = usdc.balanceOf(alice);
         uint256 daiBefore  = dai.balanceOf(alice);
@@ -150,7 +150,7 @@ contract HardPegUnitTest is BaseEconomicTest {
         uint256 poolBefore = peg.getTotalPool();
 
         vm.startPrank(alice);
-        peg.redeam(peg.getAppCoin(ID), _raw(120, address(0)));
+        peg.redeem(peg.getAppCoin(ID), _raw(120, address(0)));
         vm.stopPrank();
 
         uint256 usdcOut = usdc.balanceOf(alice) - usdcBefore;
@@ -176,7 +176,7 @@ contract HardPegUnitTest is BaseEconomicTest {
         vm.startPrank(alice);
         address tok = peg.getAppCoin(ID);
         vm.expectRevert();
-        peg.redeam(tok, 0);
+        peg.redeem(tok, 0);
         vm.stopPrank();
     }
 

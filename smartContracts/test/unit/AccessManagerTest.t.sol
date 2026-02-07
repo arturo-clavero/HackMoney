@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/shared/AccessManager.sol";
+import "../../src/core/shared/AccessManager.sol";
 
 contract AccessHarness is AccessManager {
     constructor(address _owner, address _timelock)

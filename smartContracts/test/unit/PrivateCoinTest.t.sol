@@ -173,7 +173,7 @@ contract PrivateCoinTest is Test {
                 (PrivateCoin c, address minter) = _setUpTransfer(userActions, appActions);
                 if (minter == address(0)) continue;
 
-                bytes32 digest = Core.getDigest(address(c), user1, spender, 1, deadline);
+                bytes32 digest = core.getDigest(address(c), user1, spender, 1, deadline);
                 (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1Pk, digest);
                 c.permit(user1, spender, 1, deadline, v, r, s);
 

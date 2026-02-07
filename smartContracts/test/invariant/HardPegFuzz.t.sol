@@ -59,7 +59,7 @@ contract HardPegFuzzTest is FuzzEconomicTest {
         for(uint256 i = 0; i < _totalTokens; i++){
             initialPrices[i] = 1e18;
             volatilitysBps[i] = _randomStableVol(i);
-            modes[i] = Core.COL_MODE_STABLE;
+            modes[i] = core.COL_MODE_STABLE;
             decimals[i] = _randomDecimals(i);
         }
     }

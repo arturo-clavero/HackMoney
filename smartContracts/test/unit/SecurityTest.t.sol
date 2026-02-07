@@ -3,8 +3,8 @@ pragma solidity ^0.8.13;
 
 
 import "forge-std/Test.sol";
-import "../../src/Core/shared/Security.sol";
-import "../../src/Core/shared/AccessManager.sol";
+import "../../src/core/shared/Security.sol";
+import "../../src/core/shared/AccessManager.sol";
 
 contract notTrueSecurity is Security {
     constructor(

@@ -154,7 +154,7 @@ event RegisteredApp(
 
 
 ## Interact with an app-stablecoin
-Accounts can deposit/withdraw collateral, and mint(create)/redeam(give back) stablecoins. To interact with a stablecoin we will need the id. 
+Accounts can deposit/withdraw collateral, and mint(create)/redeem(give back) stablecoins. To interact with a stablecoin we will need the id. 
 >  Transfers happen directly through the ERC-20 contract (directly on metamask). 
 
 ### Deposit Collateral
@@ -189,7 +189,7 @@ Anyone holding a stablecoin can return it to the protocol and will receive 1:1 r
 > User-> [1$ stablecoin] -> Protocol
 > Protocol-> [1$ collateral] -> User
 ``` javascript
-    function redeam(address token, uint256 rawAmount);
+    function redeem(address token, uint256 rawAmount);
 ```
 
 
@@ -248,15 +248,15 @@ Every time you forge depoly the abi will be updated here. Use the abi from this 
 
 
 ## Contracts
-> * /Core/shared/AccessManager     |--> DONE
-> * /Core/shared/CollateralManager |--> DONE
-> * /Core/shared/AppManager        |--> DONE
-> * /Core/shared/Security|--> DONE
-> * /Core/shared/Oracle |--> DONE
-> * /Core/shared/Engine |--> [removed]
-> * /Core/HardPeg | --> DONE
-* /Core/MediumPeg | --> IN PROGRESS
-* /Core/SoftPeg | --> IN PROGRESS
+> * /core/shared/AccessManager     |--> DONE
+> * /core/shared/CollateralManager |--> DONE
+> * /core/shared/AppManager        |--> DONE
+> * /core/shared/Security|--> DONE
+> * /core/shared/Oracle |--> DONE
+> * /core/shared/Engine |--> [removed]
+> * /core/HardPeg | --> DONE
+* /core/MediumPeg | --> IN PROGRESS
+* /core/SoftPeg | --> IN PROGRESS
 > * /mocks/MockOracle |--> DONE
 > * /mocks/MockRandomOracle |--> DONE
 > * /PrivateCoin | --> DONE

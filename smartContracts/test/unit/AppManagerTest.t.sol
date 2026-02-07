@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/shared/AppManager.sol";
-import "../../src/Core/shared/AccessManager.sol";
+import "../../src/core/shared/AppManager.sol";
+import "../../src/core/shared/AccessManager.sol";
 import "../utils/CoreLib.t.sol";
 
 contract AppManagerHarness is AppManager {
@@ -67,14 +67,14 @@ contract AppManagerTest is Test {
         manager = new AppManagerHarness(timelock, owner);
         (user3, user3PK) = makeAddrAndKey("alice");
 
-        col1 = Core._newToken();
-        col2 = Core._newToken();
-        col3 = Core._newToken();
+        col1 = core._newToken();
+        col2 = core._newToken();
+        col3 = core._newToken();
 
         vm.startPrank(owner);
-        manager.updateGlobalCollateral(Core._collateralInput(col1, Core.COL_MODE_STABLE));
-        manager.updateGlobalCollateral(Core._collateralInput(col2, Core.COL_MODE_STABLE));
-        manager.updateGlobalCollateral(Core._collateralInput(col3, Core.COL_MODE_STABLE));
+        manager.updateGlobalCollateral(core._collateralInput(col1, core.COL_MODE_STABLE));
+        manager.updateGlobalCollateral(core._collateralInput(col2, core.COL_MODE_STABLE));
+        manager.updateGlobalCollateral(core._collateralInput(col3, core.COL_MODE_STABLE));
         manager.finishSetUp(address(0));
         vm.stopPrank();
     }
@@ -94,7 +94,7 @@ contract AppManagerTest is Test {
     }
 
     function _defaultInput() internal view returns (AppInput memory input) {
-        input = Core._newAppInstanceInput();
+        input = core._newAppInstanceInput();
         input.tokens = _defaultTokens();
         input.users = _defaultUsers();
     }
@@ -283,7 +283,7 @@ contract AppManagerTest is Test {
 
         // transfer from requires permit
         uint256 deadline = block.timestamp + 1 days;
-        bytes32 digest = Core.getDigest(coin, user3, address(manager), 5, deadline);
+        bytes32 digest = core.getDigest(coin, user3, address(manager), 5, deadline);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(user3PK, digest);
         IPrivateCoin(coin).permit(user3, address(manager), 5, deadline, v, r, s);
 
@@ -379,8 +379,8 @@ contract AppManagerTest is Test {
         input.tokens[0] = col1;
         input.tokens[1] = col2;
         input.tokens[2] = col3;
-        input.tokens[3] = Core._newToken();
-        input.tokens[4] = Core._newToken();
+        input.tokens[3] = core._newToken();
+        input.tokens[4] = core._newToken();
 
         vm.prank(owner);
         manager.newInstance(input); // should succeed
@@ -389,9 +389,9 @@ contract AppManagerTest is Test {
         input.tokens[0] = col1;
         input.tokens[1] = col2;
         input.tokens[2] = col3;
-        input.tokens[3] = Core._newToken();
-        input.tokens[4] = Core._newToken();
-        input.tokens[5] = Core._newToken();
+        input.tokens[3] = core._newToken();
+        input.tokens[4] = core._newToken();
+        input.tokens[5] = core._newToken();
         // > MAX_COLLATERAL_TYPES
         vm.prank(owner);
         vm.expectRevert(); // expect revert

@@ -1,15 +1,15 @@
 // src/interfaces/IPeg.sol
 pragma solidity ^0.8.13;
 
-import {CollateralInput, CollateralConfig} from "../../src/Core/shared/CollateralManager.sol";
-import {AppInput} from "../../src/Core/shared/AppManager.sol";
-import {ColVault} from "../../src/Core/SoftPeg.sol";
+import {CollateralInput, CollateralConfig} from "../../src/core/shared/CollateralManager.sol";
+import {AppInput} from "../../src/core/shared/AppManager.sol";
+import {ColVault} from "../../src/core/SoftPeg.sol";
 
 interface IPeg {
     // core actions
     function deposit(uint256 id, address token, uint256 amount) external payable;
     function mint(uint256 id, address to, uint256 amount) external;
-    function redeam(address token, uint256 amount) external;
+    function redeem(address token, uint256 amount) external;
     function withdrawCollateral(uint256 id, uint256 amount) external;
 
     //soft peg...

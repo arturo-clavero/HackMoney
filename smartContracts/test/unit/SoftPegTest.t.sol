@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../../src/Core/SoftPeg.sol";
+import "../../src/core/SoftPeg.sol";
 import "@openzeppelin/token/ERC20/ERC20.sol";
 
 import "../utils/BaseEconomicTest.t.sol";
@@ -38,14 +38,14 @@ contract SoftPegUnitTest is BaseEconomicTest {
         uint256[] memory modes = new uint256[](_totalTokens);
         uint8[] memory decimals = new uint8[](_totalTokens);
         for (uint256 i = 0 ; i < _totalTokens; i++){
-            modes[i] = Core.COL_MODE_VOLATILE;
+            modes[i] = core.COL_MODE_VOLATILE;
             if (i + 2 % 4 == 0) decimals[i] = 18;
             else if (i + 2 % 3 == 0) decimals[i] = 9;
             else if (i + 2 % 2 == 0) decimals[i] = 8;
             else if (i + 2 % 1 == 0) decimals[i] = 6;
         }
         // decimals[0] = 18;
-        modes[2] = Core.COL_MODE_STABLE;
+        modes[2] = core.COL_MODE_STABLE;
         decimals[0] = 6;
         decimals[1] = 8;
         decimals[2] = 18;

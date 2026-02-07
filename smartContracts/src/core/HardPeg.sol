@@ -113,14 +113,14 @@ contract HardPeg is AppManager, Security {
      * @param token App stablecoin token address
      * @param rawAmount Amount of stablecoins to redeem (in raw units)
      */
-    function redeam(address token, uint256 rawAmount) external {
+    function redeem(address token, uint256 rawAmount) external {
         uint256 id = _getStablecoinID(token);
         if (rawAmount == 0)
             revert Error.InvalidAmount();
         uint256 valueAmount = rawAmount / DEFAULT_COIN_SCALE;
         totalSupply -= valueAmount;
         _burnAppToken(id, rawAmount);
-        _sendCollateralBasket(valueAmount);
+        _sendCollateralBasket(valueAmount, msg.sender);
     }
 
     /**
@@ -128,12 +128,21 @@ contract HardPeg is AppManager, Security {
      * @param id App ID
      * @param valueAmount Amount of value units to withdraw. Use `type(uint256).max` to withdraw all available.
      */
-    function withdrawCollateral(uint256 id, uint256 valueAmount) external {
+    function withdrawCollateralTo(uint256 id, address to, uint256 valueAmount) public {
         uint256 maxValue = vault[id][msg.sender];
         if (valueAmount == type(uint256).max)
             valueAmount = maxValue;
         vault[id][msg.sender] = maxValue - valueAmount;
-        _sendCollateralBasket(valueAmount);
+        _sendCollateralBasket(valueAmount, to);
+    }
+
+      /**
+     * @notice Withdraw collateral directly from the vault
+     * @param id App ID
+     * @param valueAmount Amount of value units to withdraw. Use `type(uint256).max` to withdraw all available.
+     */
+    function withdrawCollateral(uint256 id, uint256 valueAmount) external {
+        withdrawCollateralTo(id, msg.sender, valueAmount);
     }
 
     /// @notice Returns total value of all collateral across apps
@@ -162,7 +171,7 @@ contract HardPeg is AppManager, Security {
      *      Leaves minimal dust in the pool due to integer division rounding.
      * @param valueAmount Amount in value units to send
      */
-    function _sendCollateralBasket(uint256 valueAmount) internal {
+    function _sendCollateralBasket(uint256 valueAmount, address to) internal {
         uint256 _totalPool = totalPool;
         uint256 _totalSent;
         uint256 len = globalCollateralSupported.length;
@@ -173,7 +182,7 @@ contract HardPeg is AppManager, Security {
             globalPool[token] -= proRataValue;
             _totalSent += proRataValue;
             uint256 proRataRaw = proRataValue * globalCollateralConfig[token].scale;
-            IERC20(token).safeTransfer(msg.sender, proRataRaw);
+            IERC20(token).safeTransfer(to, proRataRaw);
         }
         totalPool -= _totalSent;
     }

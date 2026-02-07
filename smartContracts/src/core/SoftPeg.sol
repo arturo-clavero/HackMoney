@@ -49,15 +49,15 @@ contract SoftPeg is AppManager, Security, Oracle {
     Security(globalDebtcap, mintCapPerTx)
     {}
 
-    function deposit(uint256 id, address token, uint256 rawAmount) external {
+    function depositTo(uint256 id, address to, address token, uint256 rawAmount) public {
         if (!_isAppCollateralAllowed(id, token))
             revert Error.CollateralNotSupportedByApp();
         if (rawAmount == 0)
             revert Error.InvalidAmount();
-        IERC20(token).safeTransferFrom(msg.sender, address(this), rawAmount);
+        IERC20(token).safeTransferFrom(to, address(this), rawAmount);
         uint256 valueAmount = rawAmount / globalCollateralConfig[token].scale;
 
-        Position storage pos = userPositions[id][msg.sender];
+        Position storage pos = userPositions[id][to];
         uint256 currentShare = pos.colShares[token];
         if (currentShare == 0){
             if (pos.colUsed.length >= MAX_COLLATERAL_TYPES)
@@ -72,8 +72,11 @@ contract SoftPeg is AppManager, Security, Oracle {
         pos.colShares[token] = currentShare + newShare;
 
     }
+    function deposit(uint256 id, address token, uint256 rawAmount) external {
+        depositTo(id, msg.sender, token, rawAmount);
+    }
 
-    function _getMintCredit(Position storage pos) internal returns (uint256 mintCredit) {
+    function _getMintCredit(Position storage pos) internal view returns (uint256 mintCredit) {
         uint256 len = pos.colUsed.length;
         for (uint256 i = 0; i < len; i++){
             address token = pos.colUsed[i];
@@ -115,7 +118,11 @@ contract SoftPeg is AppManager, Security, Oracle {
     }
     
     function withdrawCollateral(uint256 id, address token, uint256 valueAmount) external {
-        _withdrawCollateral(id, msg.sender, token, valueAmount, msg.sender,false);
+        _withdrawCollateral(id, msg.sender, token, valueAmount, msg.sender, false);
+    }
+
+    function withdrawCollateralTo(uint256 id, address to, address token, uint256 valueAmount) external {
+        _withdrawCollateral(id, msg.sender, token, valueAmount, to, false);
     }
 
     function _withdrawCollateral(uint256 id, address user, address token, uint256 valueAmount, address receiver, bool isLiquidation) internal {
@@ -140,7 +147,6 @@ contract SoftPeg is AppManager, Security, Oracle {
     function repay(uint256 id, uint256 rawAmount) public {
         if (rawAmount == 0)
             revert Error.InvalidAmount();
-        address token = _getAppConfig(id).coin;
         uint256 valueAmount = rawAmount / DEFAULT_COIN_SCALE;
 
         uint256 newDebtShare = valueAmount.calcNewShare(totalDebt, totalDebtShares);
@@ -153,7 +159,7 @@ contract SoftPeg is AppManager, Security, Oracle {
         //send propprtonal collateral? 
     }
 
-    function redeam(uint256 id, uint256 rawAmount) external {
+    function redeem(uint256 id, uint256 rawAmount) external {
         repay(id, rawAmount);
     }
 
@@ -230,31 +236,31 @@ contract SoftPeg is AppManager, Security, Oracle {
     }
 
     
-    function getUserColShares(uint256 id, address user, address token) external returns (uint256) {
+    function getUserColShares(uint256 id, address user, address token) external view returns (uint256) {
         return (userPositions[id][user].colShares[token]);
     }
 
-    function getUserDebtShares(uint256 id, address user) external returns (uint256) {
+    function getUserDebtShares(uint256 id, address user) external view returns (uint256) {
         return (userPositions[id][user].debtShares);
     }
 
-    function getUsersColUsed(uint256 id, address user) external returns (address[] memory) {
+    function getUsersColUsed(uint256 id, address user) external view returns (address[] memory) {
         return (userPositions[id][user].colUsed);
     }
 
-    function getUsersMintCredit(uint256 id, address user) external returns (uint256) {
+    function getUsersMintCredit(uint256 id, address user) external view returns (uint256) {
         Position storage pos = userPositions[id][user];
         return _getMintCredit(pos);
     }
 
-    function getCollateralVaults(address token) external returns (ColVault memory) {
+    function getCollateralVaults(address token) external view returns (ColVault memory) {
         return (collateralVaults[token]);
     }
 
-    function getTotalDebtShares() external returns (uint256){
+    function getTotalDebtShares() external view returns (uint256){
         return totalDebtShares;
     }
-    function getTotalDebt() external returns(uint256){
+    function getTotalDebt() external view returns(uint256){
         return totalDebt;
     }
 
