@@ -19,60 +19,6 @@ import {Error} from "../../utils/ErrorLib.sol";
  * This contract is intended to be inherited by core protocol modules.
  */
 abstract contract AccessManager {
-
-    uint256 internal constant WAD = 1e18;
-    
-
-    
-    /**
-     * @dev COLLATERAL_MANAGER
-     * Manages protocol-wide collateral configuration.
-     *
-     * Capabilities:
-     * - Add or update supported collateral assets
-     * - Modify global collateral parameters
-     *
-     * Note:
-     * Applications may only use collateral that has been approved
-     * and configured at the protocol level.
-     */
-    uint256 constant public COLLATERAL_MANAGER = 1 << 1;
-
-    /**
-     * @dev ORACLE_MANAGER
-     * Manages oracle configuration and price feed security.
-     *
-     * Capabilities:
-     * - Register or update oracle sources
-     * - Maintain oracle-related risk parameters
-     */
-    uint256 constant public ORACLE_MANAGER = 1 << 2;
-
-    /**
-     * @dev GOVERNOR
-     * Emergency control role.
-     *
-     * Capabilities:
-     * - Pause critical protocol actions
-     *
-     * Intended for risk mitigation and incident response.
-     */
-    uint256 constant public GOVERNOR = 1 << 3;
-
-    /**
-     * @dev LIQUIDATOR
-     * Can liquidate positions.
-     *
-     * Capabilities:
-     * - Mint and hold any app-sepcific stablecoin
-     * - Liquidate single positions
-     * - Batch liquidate positions in an app
-     * - Participate in liquidation pool
-     *
-     * Intended for risk mitigation and incident response.
-     */
-    uint256 constant public LIQUIDATOR = 1 << 4;
-
     /**
     * @dev The `isSetUp` flag ensures there is a **protected deployment/configuration phase**:
     * - Prevents accidental use of uninitialized protocol modules
@@ -157,7 +103,7 @@ abstract contract AccessManager {
     }
 
     /**
-     * @notice Checks whether a user is the owner
+     * @notice Checks whether a user is the
      * note used by timelock - do not delete
      */
     function isOwner(address account) external view returns (bool) {

@@ -4,9 +4,10 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import {HardPeg} from "../../../src/core/HardPeg.sol";
 import {HardPegAdapter} from "../../../src/adapters/HardPegAdapter.sol";
-import "../../../src/Y_Timelock.sol";
+import "../../../src/Timelock.sol";
 import "../../../src/core/shared/CollateralManager.sol";
-import "../../../test/utils/CoreLib.t.sol";
+import "../../../src/utils/CollateralLib.sol";
+import "../../../src/utils/RoleLib.sol";
 
 struct DeploymentInfo {
     address hardPeg;
@@ -14,73 +15,30 @@ struct DeploymentInfo {
 }
 
 contract DeployHardPeg is Script {
+    Timelock timelock;
+    HardPeg hardPeg;
+    HardPegAdapter hardPegAdapter;
+
     function run() external returns (DeploymentInfo memory info) {
+        address owner = vm.envAddress("OWNER");
         uint256 deployerPK = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPK);
 
         vm.startBroadcast(deployerPK);
 
-        // Deploy timelock
-        Timelock timelock = new Timelock();
-
-        // Deploy HardPeg
-        address owner = vm.envAddress("OWNER");
-        uint256 globalDebtCap = 5_000_000 ether;
-        uint256 mintCapPerTx = 1_000 ether;
-        HardPeg hardPeg = new HardPeg(
+        timelock = new Timelock();
+ 
+        hardPeg = new HardPeg(
             deployer,
             address(timelock),
-            globalDebtCap,
-            mintCapPerTx
+            5_000_000 ether,    //global debt cap
+            1_000 ether         //mint cap per tx
         );
 
-        // Deploy adapter for frontend
-        HardPegAdapter hardPegAdapter = new HardPegAdapter(address(hardPeg));
-        // Now frontend or other scripts can interact via adapter
-        // Example: adapter address: hardPegAdapter.address
-
-        // Register collateral
-        uint256 stableMode = core.COL_MODE_STABLE;
-
-        address pyusd = 0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9;
-        address[] memory feeds1 = new address[](1);
-        fakeFeeds[0] = address(0x57020Ba11D61b188a1Fd390b108D233D87c06057); //pyusd
-        hardPeg.updateGlobalCollateral(CollateralInput({
-            tokenAddress: pyusd,
-            mode: stableMode,
-            oracleFeeds: feeds1,
-            LTV: 98,
-            liquidityThreshold: 100,
-            debtCap: 200_000 ether
-        }));
-
-        address usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
-        address[] memory feeds2 = new address[](1);
-        fakeFeeds[0] = address(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E); //usdc
-         hardPeg.updateGlobalCollateral(CollateralInput({
-            tokenAddress: usdc,
-            mode: stableMode,
-            oracleFeeds: feeds2,
-            LTV: 98,
-            liquidityThreshold: 100,
-            debtCap: 200_000 ether
-        }));
-
-        address dai = 0x776b6fc2ed15d6bb5fc32e0c89de68683118c62a;
-        address[] memory feeds3 = new address[](1);
-        fakeFeeds[0] = address(0x14866185B1962B63C3Ea9E03Bc1da838bab34C19); //dai
-         hardPeg.updateGlobalCollateral(CollateralInput({
-            tokenAddress: dai,
-            mode: stableMode,
-            oracleFeeds: feeds3,
-            LTV: 98,
-            liquidityThreshold: 100,
-            debtCap: 200_000 ether
-        }));
-        //Update timelock to point to protocol (if needed)
-        // timelock.setProtocol(address(hardPeg));
-
-        // Finish setup & transfer ownership to multisig
+        hardPegAdapter = new HardPegAdapter(address(hardPeg));
+        
+        setTimelockedCalls();
+        addGlobalCollateral();
         hardPeg.finishSetUp(owner);
 
         vm.stopBroadcast();
@@ -90,4 +48,133 @@ contract DeployHardPeg is Script {
         console.log("HardPeg adapter:        ", address(hardPegAdapter));
         info = DeploymentInfo(address(hardPeg), address(hardPegAdapter));
     }
+
+    function addGlobalCollateral() internal {
+        address[] memory feeds = new address[](1);
+        uint256 chainId = block.chainid;
+        
+        if (chainId == 5042002) {
+            address usdcArc = address(0x3600000000000000000000000000000000000000);
+            feeds[0] = address(0); 
+            hardPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: usdcArc,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+        }
+
+        if (chainId == 11155111) {
+            address pyusd = address(0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9);
+            feeds[0] = address(0);
+            hardPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: pyusd,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+
+            address usdc = address(0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238);
+            feeds[0] = address(0); 
+            hardPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: usdc,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+
+            address dai = address(0x776b6fC2eD15D6Bb5Fc32e0c89DE68683118c62A);
+            feeds[0] = address(0);
+            hardPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: dai,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+        }
+        
+    }
+
+    function setTimelockedCalls() internal {
+        
+        timelock.setSelector(
+            hardPeg.updateGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+
+        timelock.setSelector(
+            hardPeg.removeGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+
+        timelock.setSelector(
+            hardPeg.pauseGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 30 minutes,
+                gracePeriod: 2 hours
+            })
+        );
+
+        timelock.setSelector(
+            hardPeg.unpauseGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+
+        timelock.setSelector(
+            hardPeg.unpauseMint.selector,
+            CallConfig({
+                role: Roles.GOVERNOR,
+                delay: 1 days,
+                gracePeriod: 2 days
+            })
+        );
+
+        timelock.setSelector(
+            hardPeg.unpauseWithdraw.selector,
+            CallConfig({
+                role: Roles.GOVERNOR,
+                delay: 1 days,
+                gracePeriod: 2 days
+            })
+        );
+        
+        timelock.setSelector(
+            hardPeg.updateGlobalDebtCap.selector,
+            CallConfig({
+                role: Roles.GOVERNOR,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+        
+        timelock.setSelector(
+            hardPeg.updateMintCapPerTx.selector,
+            CallConfig({
+                role: Roles.GOVERNOR,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+    } 
 }

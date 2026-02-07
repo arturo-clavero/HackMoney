@@ -6,8 +6,12 @@ import {Math} from "@openzeppelin/utils/math/Math.sol";
 
 library RiskMath {
 
-    uint256 constant private WAD = 1e10;
+     /// @dev constant used for decimal math
+    uint256 internal constant WAD = 1e18;
 
+    /// @notice Internal scaling factor for value-to-raw conversions
+    uint256 internal constant DEFAULT_COIN_SCALE = 1e18;
+    
     function calcNewShare(
         uint256 assetChange,     
         uint256 totalAssets, 

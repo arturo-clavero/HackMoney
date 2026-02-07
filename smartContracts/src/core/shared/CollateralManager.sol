@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import {AccessManager} from "./AccessManager.sol";
 import {IERC20Metadata} from "@openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
+import {Collateral} from "../../utils/CollateralLib.sol";
+import {RiskMath} from "../../utils/RiskMathLib.sol";
 import {Error} from "../../utils/ErrorLib.sol";
 
 /**
@@ -50,16 +52,8 @@ struct CollateralConfig {
  * easy (non-delayed) configurations post-deployment.
  */
 abstract contract CollateralManager is AccessManager {
-    /// @dev Collateral classification flags
-    uint256 public constant MODE_STABLE = 1 << 0;
-    uint256 public constant MODE_VOLATILE = 1 << 1;
-    uint256 public constant MODE_YIELD = 1 << 2;
-
-    /// @dev Internal active/paused flag
-    uint256 private constant MODE_ACTIVE = 1 << 3;
-
-    /// @dev Canonical ETH placeholder (used by inheriting contracts)
-    address internal constant ETH_ADDRESS = address(0);
+    
+    using Collateral for uint256;
 
     /// @dev Allowed collateral modes for this deployment (peg-type dependent)
     uint256 private immutable i_allowedCollateralModes;
@@ -83,17 +77,7 @@ abstract contract CollateralManager is AccessManager {
      * - Stable + volatile pegs
      */
     constructor(uint256 pegType) {
-        if (pegType == 0) {
-            i_allowedCollateralModes |= MODE_STABLE;
-        }
-        else if (pegType == 1){
-            i_allowedCollateralModes |= MODE_STABLE;
-            i_allowedCollateralModes |= MODE_YIELD;
-        }
-        else {
-            i_allowedCollateralModes |= MODE_STABLE;
-            i_allowedCollateralModes |= MODE_VOLATILE;
-        }
+        i_allowedCollateralModes = pegType.allowedCollateralModes();
     }
 
     /**
@@ -118,10 +102,10 @@ abstract contract CollateralManager is AccessManager {
             c.scale = 10 ** decimals;
             globalCollateralSupported.push(updatedCol.tokenAddress);
         }
-        c.mode = updatedCol.mode | MODE_ACTIVE;
+        c.mode = updatedCol.mode | Collateral.MODE_ACTIVE;
         c.oracleFeeds = updatedCol.oracleFeeds;
-        c.LTV = updatedCol.LTV * WAD / 100;
-        c.liquidityThreshold = updatedCol.liquidityThreshold * WAD / 100;
+        c.LTV = updatedCol.LTV * RiskMath.WAD / 100;
+        c.liquidityThreshold = updatedCol.liquidityThreshold * RiskMath.WAD / 100;
         c.debtCap = updatedCol.debtCap;
     }    
         
@@ -139,14 +123,14 @@ abstract contract CollateralManager is AccessManager {
      * @dev Used for emergency risk mitigation.
      */
     function pauseGlobalCollateral(address tokenAddress) external onlyTimeLock(){
-        globalCollateralConfig[tokenAddress].mode &= ~MODE_ACTIVE;
+        globalCollateralConfig[tokenAddress].mode &= ~ Collateral.MODE_ACTIVE;
     }
 
     /**
      * @notice Reactivates a previously paused collateral asset.
      */
     function unpauseGlobalCollateral(address tokenAddress) external onlyTimeLock(){
-        globalCollateralConfig[tokenAddress].mode |= MODE_ACTIVE;
+        globalCollateralConfig[tokenAddress].mode |= Collateral.MODE_ACTIVE;
     }
 
 
@@ -156,7 +140,7 @@ abstract contract CollateralManager is AccessManager {
      * @dev Returns true if collateral is active and usable.
      */
     function _isGlobalCollateralAllowed(address tokenAddress) internal view returns (bool){
-        return globalCollateralConfig[tokenAddress].mode & MODE_ACTIVE != 0;
+        return globalCollateralConfig[tokenAddress].mode & Collateral.MODE_ACTIVE != 0;
     }
 
     /**

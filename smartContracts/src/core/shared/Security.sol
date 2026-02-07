@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {AccessManager} from "./AccessManager.sol";
-
+import "../../utils/RoleLib.sol";
 /**
  * @title pausing & governance control contract
  * @notice Manages protocol-level access control and feature-level pausing for minting and withdrawals.
@@ -84,7 +84,7 @@ abstract contract Security is AccessManager{
         totalDebt = newDebt;
     }
     /// @notice Pauses minting. Can only be called by the owner.
-    function pauseMint() external onlyOwner {
+    function pauseMint() external onlyRole(Roles.GOVERNOR) {
         if (mintPaused == true) revert AlreadyPaused();
         mintPaused = true;
         emit MintPaused(msg.sender);
@@ -98,7 +98,7 @@ abstract contract Security is AccessManager{
     }
 
     /// @notice Pauses withdrawals. Can only be called by the owner.
-    function pauseWithdraw() external onlyOwner {
+    function pauseWithdraw() external onlyRole(Roles.GOVERNOR) {
         if (withdrawPaused) revert AlreadyPaused();
         withdrawPaused = true;
         emit WithdrawPaused(msg.sender);

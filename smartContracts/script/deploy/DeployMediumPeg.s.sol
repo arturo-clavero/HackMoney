@@ -6,7 +6,7 @@ import {MediumPeg} from "../../../src/core/MediumPeg.sol";
 import {MediumPegAdapter} from "../../../src/adapters/MediumPegAdapter.sol";
 import "../../../src/Timelock.sol";
 import "../../../src/core/shared/CollateralManager.sol";
-import "../../../test/utils/CoreLib.t.sol";
+import "../../../src/utils/CollateralLib.t.sol";
 
 struct DeploymentInfo {
     address mediumPeg;
@@ -14,52 +14,30 @@ struct DeploymentInfo {
 }
 
 contract DeployMediumPeg is Script {
+    Timelock timelock;
+    MediumPeg mediumPeg;
+    MediumPegAdapter mediumPegAdapter;
+
     function run() external returns (DeploymentInfo memory info) {
+        address owner = vm.envAddress("OWNER");
         uint256 deployerPK = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPK);
 
         vm.startBroadcast(deployerPK);
 
-        // Deploy timelock
-        Timelock timelock = new Timelock();
-
-        // Deploy MediumPeg
-        address owner = vm.envAddress("OWNER");
-        uint256 globalDebtCap = 5_000_000 ether;
-        uint256 mintCapPerTx = 1_000 ether;
-        MediumPeg mediumPeg = new MediumPeg(
+        timelock = new Timelock();
+ 
+        mediumPeg = new MediumPeg(
             deployer,
             address(timelock),
-            globalDebtCap,
-            mintCapPerTx
+            5_000_000 ether,    //global debt cap
+            1_000 ether,        //mint cap per tx
         );
 
-        // Deploy adapter for frontend
-        MediumPegAdapter mediumPegAdapter = new MediumPegAdapter(address(mediumPeg));
-        // Now frontend or other scripts can interact via adapter
-        // Example: adapter address: mediumPegAdapter.address
-
-        // Register collateral
-        address fakeToken = address(core._newToken());
-        uint256 stableMode = core.COL_MODE_STABLE;
-        address[] memory fakeFeeds = new address[](3);
-        fakeFeeds[0] = address(0xA);
-        fakeFeeds[1] = address(0xB);
-        fakeFeeds[2] = address(0xC);
-
-        mediumPeg.updateGlobalCollateral(CollateralInput({
-            tokenAddress: fakeToken,
-            mode: stableMode,
-            oracleFeeds: fakeFeeds,
-            LTV: 0,
-            liquidityThreshold: 0,
-            debtCap: 200_000 ether
-        }));
-
-        //Update timelock to point to protocol (if needed)
-        // timelock.setProtocol(address(mediumPeg));
-
-        // Finish setup & transfer ownership to multisig
+        mediumPegAdapter = new MediumPegAdapter(address(mediumPeg));
+        
+        setTimelockedCalls();
+        addGlobalCollateral();
         mediumPeg.finishSetUp(owner);
 
         vm.stopBroadcast();
@@ -69,4 +47,135 @@ contract DeployMediumPeg is Script {
         console.log("MediumPeg adapter:        ", address(mediumPegAdapter));
         info = DeploymentInfo(address(mediumPeg), address(mediumPegAdapter));
     }
+
+    function addGlobalCollateral(){
+
+        address[] memory feeds = new address[](1);
+        uint256 chainId = block.chainid;
+        
+        if (chainId == 5042002) {
+            address usdcArc = address(0x3600000000000000000000000000000000000000);
+            feeds[0] = address(0); 
+            mediumPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: usdcArc,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+        }
+
+        if (chainId == 11155111) {
+            address pyusd = address(0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9);
+            feeds[0] = address(0);
+            mediumPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: pyusd,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+
+            address usdc = address(0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238);
+            feeds[0] = address(0); 
+            mediumPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: usdc,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+
+            address dai = address(0x776b6fc2ed15d6bb5fc32e0c89de68683118c62a);
+            feeds[0] = address(0);
+            mediumPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: dai,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 200_000 ether
+            }));
+        }
+        
+    }
+
+
+    function setTimelockedCalls() internal {
+        
+        timelock.setSelector(
+            mediumPeg.updateGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+
+        timelock.setSelector(
+            mediumPeg.removeGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+
+        timelock.setSelector(
+            mediumPeg.pauseGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 30 minutes,
+                gracePeriod: 2 hours
+            })
+        );
+
+        timelock.setSelector(
+            mediumPeg.unpauseGlobalCollateral.selector,
+            CallConfig({
+                role: Roles.COLLATERAL_MANAGER,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+
+        timelock.setSelector(
+            mediumPeg.unpauseMint.selector
+            CallConfig({
+                role: Roles.,
+                delay: 1 days,
+                gracePeriod: 2 days
+            })
+        );
+
+        timelock.setSelector(
+            mediumPeg.unpauseWithdraw.selector
+            CallConfig({
+                role: Roles.,
+                delay: 1 days,
+                gracePeriod: 2 days
+            })
+        );
+        
+        timelock.setSelector(
+            mediumPeg.updateGlobalDebtCap.selector
+            CallConfig({
+                role: Roles.,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+        
+        timelock.setSelector(
+            mediumPeg.updateMintCapPerTx.selector
+            CallConfig({
+                role: Roles.,
+                delay: 1 days,
+                gracePeriod: 3 days
+            })
+        );
+    } 
 }

@@ -38,7 +38,6 @@ contract PrivateCoin is ERC20, ERC20Permit{
     /// @dev Address => permission bitmask
     mapping(address account => uint256 actions) private _permission;
 
-
     /**
      * @notice Emitted when a permission update exceeds the processing limit.
      * @dev Caller must retry with the remaining addresses.

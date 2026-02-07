@@ -123,7 +123,7 @@ abstract contract AppManager is CollateralManager {
      * @notice Extends the authorized user list for an app.
      * @dev Only callable by the app owner.
      */
-    function addUsers(uint256 id, address[] memory toAdd) public {
+    function addUsers(uint256 id, address[] memory toAdd) external {
         AppConfig storage thisApp = appConfig[id];
         if (msg.sender != thisApp.owner)
             revert Error.InvalidAccess();

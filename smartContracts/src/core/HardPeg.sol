@@ -7,7 +7,7 @@ import {Security} from "./shared/Security.sol";
 import {AppManager} from "./shared/AppManager.sol";
 import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
-
+import {RiskMath} from "../utils/RiskMathLib.sol";
 import {Error} from "../utils/ErrorLib.sol";
 
 
@@ -24,9 +24,6 @@ import {Error} from "../utils/ErrorLib.sol";
 contract HardPeg is AppManager, Security {
 
     using SafeERC20 for IERC20;
-
-    /// @notice Internal scaling factor for value-to-raw conversions
-    uint256 private constant DEFAULT_COIN_SCALE = 1e18;
 
     /// @notice Total value of all collateral across all apps (in "value units")
     uint256 private totalPool;
@@ -95,13 +92,13 @@ contract HardPeg is AppManager, Security {
      * @param to Recipient address
      * @param rawAmount Amount of stablecoins to mint (in raw units). Use `type(uint256).max` to mint max available.
      */
-    function mint(uint256 id, address to, uint256 rawAmount) public {
+    function mint(uint256 id, address to, uint256 rawAmount) external {
         uint256 maxValue = vault[id][msg.sender];
         uint256 valueAmount;
         if (rawAmount == type(uint256).max)
-            rawAmount = maxValue * DEFAULT_COIN_SCALE;
+            rawAmount = maxValue * RiskMath.DEFAULT_COIN_SCALE;
 
-        valueAmount = rawAmount / DEFAULT_COIN_SCALE;
+        valueAmount = rawAmount / RiskMath.DEFAULT_COIN_SCALE;
 
         vault[id][msg.sender] = maxValue - valueAmount;
         totalSupply += valueAmount;
@@ -117,7 +114,7 @@ contract HardPeg is AppManager, Security {
         uint256 id = _getStablecoinID(token);
         if (rawAmount == 0)
             revert Error.InvalidAmount();
-        uint256 valueAmount = rawAmount / DEFAULT_COIN_SCALE;
+        uint256 valueAmount = rawAmount / RiskMath.DEFAULT_COIN_SCALE;
         totalSupply -= valueAmount;
         _burnAppToken(id, rawAmount);
         _sendCollateralBasket(valueAmount, msg.sender);

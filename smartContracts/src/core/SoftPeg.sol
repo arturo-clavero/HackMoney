@@ -10,7 +10,7 @@ import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
 
 import {RiskMath} from "../utils/RiskMathLib.sol";
-import {Math} from "@openzeppelin/utils/math/Math.sol";
+import {Roles} from "../utils/RoleLib.sol";
 import {Error} from "../utils/ErrorLib.sol";
 import {IPrivateCoin} from "./../interfaces/IPrivateCoin.sol";
 
@@ -85,7 +85,7 @@ contract SoftPeg is AppManager, Security, Oracle {
             ColVault storage vault = collateralVaults[token];
             uint256 valueAmount = share.calcAssets(vault.totalShares, vault.totalAssets);
             mintCredit += RiskMath.safeMulDiv(valueAmount * getPrice(token), globalCollateralConfig[token].LTV,
-                WAD * 1e8
+                RiskMath.WAD * 1e8
             );
         }
         mintCredit -= pos.debtShares.calcAssets(totalDebtShares, totalDebt);
@@ -114,7 +114,7 @@ contract SoftPeg is AppManager, Security, Oracle {
     }
 
     function _mintAppToken(uint256 appID, address to, uint256 value) internal override {
-        IPrivateCoin(getAppCoin(appID)).mint(msg.sender, to, value, roles[msg.sender] & LIQUIDATOR != 0);
+        IPrivateCoin(getAppCoin(appID)).mint(msg.sender, to, value, roles[msg.sender] & Roles.LIQUIDATOR != 0);
     }
     
     function withdrawCollateral(uint256 id, address token, uint256 valueAmount) external {
@@ -181,7 +181,7 @@ contract SoftPeg is AppManager, Security, Oracle {
             uint256 _valueAmount = share.calcAssets(vault.totalShares, vault.totalAssets);
             uint256 valuePrice = _valueAmount * getPrice(colToken);
             maxDebt += RiskMath.safeMulDiv(valuePrice, globalCollateralConfig[colToken].liquidityThreshold,
-                WAD * 1e8
+                RiskMath.WAD * 1e8
             );
             //take advantage of loop + oracle to set basket for transfers...
             valuePrice /= 1e8;

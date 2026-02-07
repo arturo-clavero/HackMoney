@@ -1,4 +1,4 @@
-export const hardPegAbi = [
+export const softPegAbi = [
   {
     type: "function",
     name: "newInstance",

@@ -43,7 +43,7 @@ contract Timelock {
         selectorConfig[_selector] = config;
     }
 
-    function queue(address target, bytes calldata data, uint256 requiredRole) external returns (bytes32 txHash) {
+    function queue(address target, bytes calldata data) external returns (bytes32 txHash) {
         if (target == address(0))
             revert Error.InvalidTarget();
 
@@ -93,7 +93,7 @@ contract Timelock {
             revert Error.TxExpired();
 
         delete queuedTx[txHash];
-        (bool ok, bytes memory res) = target.call(data);
+        (bool ok, ) = target.call(data);
         if (!ok)
             revert Error.TxFailed();
     }
