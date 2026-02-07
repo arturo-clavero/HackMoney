@@ -1,6 +1,7 @@
 "use client";
 
 import { useWizard } from "./WizardContext";
+import { motion } from "@/components/motion";
 
 const STEPS = [
   "Name",
@@ -22,22 +23,48 @@ export function Stepper() {
         return (
           <div key={label} className="flex items-center gap-2 flex-1">
             <div className="flex items-center gap-2 min-w-0">
-              <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium transition-colors ${
-                  isCompleted
-                    ? "bg-green-600 text-white"
+              <motion.div
+                initial={false}
+                animate={{
+                  scale: isCurrent ? 1.1 : 1,
+                  backgroundColor: isCompleted
+                    ? "var(--color-green-600, #16a34a)"
                     : isCurrent
-                      ? "bg-blue-600 text-white"
-                      : "bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
-                }`}
+                      ? "var(--color-primary, #2563eb)"
+                      : "var(--color-muted, #e4e4e7)",
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium text-primary-foreground"
               >
-                {isCompleted ? "\u2713" : i + 1}
-              </div>
+                {isCompleted ? (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 15,
+                    }}
+                  >
+                    &#10003;
+                  </motion.span>
+                ) : (
+                  <span
+                    className={
+                      isCompleted || isCurrent
+                        ? "text-white"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {i + 1}
+                  </span>
+                )}
+              </motion.div>
               <span
                 className={`text-sm truncate hidden sm:block ${
                   isCurrent
-                    ? "font-medium text-black dark:text-white"
-                    : "text-zinc-400 dark:text-zinc-600"
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground"
                 }`}
               >
                 {label}
@@ -45,10 +72,8 @@ export function Stepper() {
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`h-px flex-1 ${
-                  i < step
-                    ? "bg-green-600"
-                    : "bg-zinc-200 dark:bg-zinc-800"
+                className={`h-px flex-1 transition-colors ${
+                  i < step ? "bg-green-600" : "bg-border"
                 }`}
               />
             )}
