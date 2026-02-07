@@ -138,6 +138,14 @@ export function TokenSelectorModal({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollReady, setScrollReady] = useState(0);
+
+  // Callback ref: when the scroll container mounts (dialog opens), bump a
+  // counter so the virtualizer re-measures against the new DOM element.
+  const scrollCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node;
+    if (node) setScrollReady((c) => c + 1);
+  }, []);
 
   const chainMap = useMemo(() => {
     const map = new Map<number, ExtendedChain>();
@@ -217,7 +225,8 @@ export function TokenSelectorModal({
     return sorted;
   }, [selectedChainId, tokensByChain, debouncedSearch]);
 
-  // Virtualizer
+  // Virtualizer — scrollReady in the dependency list forces re-measurement
+  // when the Dialog portal remounts the scroll container.
   const virtualizer = useVirtualizer({
     count: filteredTokens.length,
     getScrollElement: () => scrollRef.current,
@@ -225,6 +234,11 @@ export function TokenSelectorModal({
     overscan: 5,
     getItemKey: (index) => `${filteredTokens[index].chainId}-${filteredTokens[index].address}-${index}`,
   });
+
+  // Re-measure virtualizer when the scroll container remounts
+  useEffect(() => {
+    if (scrollReady > 0) virtualizer.measure();
+  }, [scrollReady, virtualizer]);
 
   // Scroll to top when chain or search changes
   useEffect(() => {
@@ -304,7 +318,7 @@ export function TokenSelectorModal({
 
           {/* Token list (virtualized) */}
           <div
-            ref={scrollRef}
+            ref={scrollCallbackRef}
             className={`flex-1 overflow-y-auto ${scrollbarClasses}`}
           >
             {isLoading ? (
