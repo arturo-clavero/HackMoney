@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import {HardPeg} from "../../../src/core/HardPeg.sol";
 import {HardPegAdapter} from "../../../src/adapters/HardPegAdapter.sol";
-import "../../../src/Timelock.sol";
+import "../../../src/Y_Timelock.sol";
 import "../../../src/core/shared/CollateralManager.sol";
 import "../../../test/utils/CoreLib.t.sol";
 
@@ -43,9 +43,9 @@ contract DeployHardPeg is Script {
         address fakeToken = address(core._newToken());
         uint256 stableMode = core.COL_MODE_STABLE;
         address[] memory fakeFeeds = new address[](3);
-        fakeFeeds[0] = address(0xA);
-        fakeFeeds[1] = address(0xB);
-        fakeFeeds[2] = address(0xC);
+        fakeFeeds[0] = address(0x57020Ba11D61b188a1Fd390b108D233D87c06057); //pyusd
+        fakeFeeds[1] = address(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E); //usdc
+        fakeFeeds[2] = address(0x14866185B1962B63C3Ea9E03Bc1da838bab34C19); //dai
 
         hardPeg.updateGlobalCollateral(CollateralInput({
             tokenAddress: fakeToken,
