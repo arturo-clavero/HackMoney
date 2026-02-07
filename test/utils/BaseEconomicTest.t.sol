@@ -50,7 +50,6 @@ abstract contract BaseEconomicTest is Test {
         }
         totalUsers = _totalUsers;
     }
-
     function _setUpCol(uint256[] memory modes, uint8[] memory decimals) private {
         uint256 len = modes.length;
         tokens = new MockToken[](len);

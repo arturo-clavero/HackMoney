@@ -23,4 +23,5 @@ interface IPeg {
     function addAppCollateral(uint256 appID, address token) external;
     function newInstance(AppInput calldata config) external returns (uint256 id);
     function getAppCoin(uint256 id) external view returns (address);
+    
 }

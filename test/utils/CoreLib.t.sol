@@ -7,7 +7,7 @@ import "../../src/utils/ActionsLib.sol";
 import "../../src/PrivateCoin.sol";
 import "../../src/interfaces/IPrivateCoin.sol";
 import "../mocks/MockToken.sol";
-
+import {ERC4626Mock} from "@openzeppelin/mocks/token/ERC4626Mock.sol";
 library Core {
 
 //PC users ACTIONS
@@ -36,7 +36,6 @@ library Core {
             tokens: new address[](0)
         });
     }
-
     function _newAppInstanceInput(address[] memory users, address[] memory tokens) internal pure returns (AppInput memory input) {
         input = AppInput({
             name: "TestCoin",

@@ -52,7 +52,6 @@ import {Error} from "../utils/ErrorLib.sol";
         vaults[appId] = vault;
     }
 
-
     /** 
         @notice user deposits yield-bearing stablecoins. Store depositedValue, mint stays 1:1 against it
         @dev only collateral providers call this
@@ -72,8 +71,6 @@ import {Error} from "../utils/ErrorLib.sol";
         Position storage p = positions[appId][msg.sender];
         p.principals += valueAtDeposit;
         p.shares += shares;
-
-
     }
     // @notice mints stavlecoin against their deposit. Mint against depositedvalue(not cuurent )
     // @dev mint is only based on principal (yields ignored)
