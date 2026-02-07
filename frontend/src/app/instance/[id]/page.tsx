@@ -10,6 +10,9 @@ import { erc20Abi, type Address } from "viem";
 import { InstanceOverview } from "@/components/instance/InstanceOverview";
 import { UserManagement } from "@/components/instance/UserManagement";
 import { VaultOperations } from "@/components/instance/VaultOperations";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PageTransition, motion } from "@/components/motion";
 
 export default function InstancePage({
   params,
@@ -31,15 +34,12 @@ export default function InstancePage({
   } catch {
     return (
       <div className="mx-auto max-w-3xl px-6 py-12">
-        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-          Invalid instance ID.
-        </div>
-        <Link
-          href="/"
-          className="mt-4 inline-block text-sm text-blue-600 hover:underline"
-        >
-          Back to Home
-        </Link>
+        <Alert variant="destructive">
+          <AlertDescription>Invalid instance ID.</AlertDescription>
+        </Alert>
+        <Button variant="ghost" size="sm" asChild className="mt-4">
+          <Link href="/">Back to Home</Link>
+        </Button>
       </div>
     );
   }
@@ -73,41 +73,35 @@ export default function InstancePage({
     return (
       <div className="flex min-h-[calc(100vh-57px)] items-center justify-center">
         <div className="flex flex-col items-center gap-6">
-          <h1 className="text-2xl font-bold text-black dark:text-white">
-            {title}
-          </h1>
-          <p className="text-zinc-500">
+          <h1 className="text-2xl font-bold">{title}</h1>
+          <p className="text-muted-foreground">
             Connect your wallet to view this instance.
           </p>
-          <button
-            onClick={() => open()}
-            className="rounded-lg bg-blue-600 px-8 py-4 text-lg font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            Connect Wallet
-          </button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button size="lg" onClick={() => open()}>
+              Connect Wallet
+            </Button>
+          </motion.div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
-      <div className="mb-8 flex items-center gap-4">
-        <Link
-          href="/"
-          className="text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-        >
-          &larr; Back
-        </Link>
-        <h1 className="text-2xl font-bold text-black dark:text-white">
-          {title}
-        </h1>
+    <PageTransition>
+      <div className="mx-auto max-w-3xl px-6 py-12">
+        <div className="mb-8 flex items-center gap-4">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/">&larr; Back</Link>
+          </Button>
+          <h1 className="text-2xl font-bold">{title}</h1>
+        </div>
+        <div className="flex flex-col gap-8">
+          <InstanceOverview appId={appId} />
+          <UserManagement appId={appId} />
+          <VaultOperations appId={appId} />
+        </div>
       </div>
-      <div className="flex flex-col gap-8">
-        <InstanceOverview appId={appId} />
-        <UserManagement appId={appId} />
-        <VaultOperations appId={appId} />
-      </div>
-    </div>
+    </PageTransition>
   );
 }

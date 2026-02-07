@@ -20,6 +20,7 @@ interface WizardContextValue {
   state: WizardState;
   setState: (update: Partial<WizardState>) => void;
   canProceed: boolean;
+  direction: number;
 }
 
 const WizardContext = createContext<WizardContextValue | null>(null);
@@ -33,8 +34,14 @@ const initialState: WizardState = {
 };
 
 export function WizardProvider({ children }: { children: ReactNode }) {
-  const [step, setStep] = useState<WizardStep>(0);
+  const [step, setStepRaw] = useState<WizardStep>(0);
+  const [direction, setDirection] = useState(1);
   const [state, setStateRaw] = useState<WizardState>(initialState);
+
+  const setStep = (newStep: WizardStep) => {
+    setDirection(newStep > step ? 1 : -1);
+    setStepRaw(newStep);
+  };
 
   const setState = (update: Partial<WizardState>) => {
     setStateRaw((prev) => ({ ...prev, ...update }));
@@ -61,7 +68,9 @@ export function WizardProvider({ children }: { children: ReactNode }) {
   })();
 
   return (
-    <WizardContext.Provider value={{ step, setStep, state, setState, canProceed }}>
+    <WizardContext.Provider
+      value={{ step, setStep, state, setState, canProceed, direction }}
+    >
       {children}
     </WizardContext.Provider>
   );

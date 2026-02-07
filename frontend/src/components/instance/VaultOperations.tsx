@@ -17,48 +17,58 @@ import {
   maxUint256,
 } from "viem";
 import { DepositFlow } from "./DepositFlow";
-
-type Tab = "deposit" | "mint" | "redeem" | "withdraw";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { motion } from "@/components/motion";
 
 export function VaultOperations({ appId }: { appId: bigint }) {
-  const [activeTab, setActiveTab] = useState<Tab>("deposit");
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "deposit", label: "Deposit" },
-    { key: "mint", label: "Mint" },
-    { key: "redeem", label: "Redeem" },
-    { key: "withdraw", label: "Withdraw" },
-  ];
-
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800">
-      <div className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-        <h2 className="font-semibold text-black dark:text-white">
-          Vault Operations
-        </h2>
-      </div>
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400"
-                : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <div className="p-5">
-        {activeTab === "deposit" && <DepositFlow appId={appId} />}
-        {activeTab === "mint" && <MintTab appId={appId} />}
-        {activeTab === "redeem" && <RedeemTab appId={appId} />}
-        {activeTab === "withdraw" && <WithdrawTab appId={appId} />}
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Vault Operations</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Tabs defaultValue="deposit">
+          <TabsList className="w-full rounded-none border-b bg-transparent px-5">
+            <TabsTrigger value="deposit" className="flex-1">
+              Deposit
+            </TabsTrigger>
+            <TabsTrigger value="mint" className="flex-1">
+              Mint
+            </TabsTrigger>
+            <TabsTrigger value="redeem" className="flex-1">
+              Redeem
+            </TabsTrigger>
+            <TabsTrigger value="withdraw" className="flex-1">
+              Withdraw
+            </TabsTrigger>
+          </TabsList>
+          <div className="p-5">
+            <TabsContent value="deposit" className="mt-0">
+              <DepositFlow appId={appId} />
+            </TabsContent>
+            <TabsContent value="mint" className="mt-0">
+              <MintTab appId={appId} />
+            </TabsContent>
+            <TabsContent value="redeem" className="mt-0">
+              <RedeemTab appId={appId} />
+            </TabsContent>
+            <TabsContent value="withdraw" className="mt-0">
+              <WithdrawTab appId={appId} />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -83,10 +93,14 @@ function MintTab({ appId }: { appId: bigint }) {
     query: { enabled: !!contractAddress && !!address },
   });
 
-  const { writeContract, isPending, data: txHash, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  const {
+    writeContract,
+    isPending,
+    data: txHash,
+    error: writeError,
+  } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   useEffect(() => {
     if (isSuccess) refetchVault();
@@ -110,49 +124,49 @@ function MintTab({ appId }: { appId: bigint }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <label className="mb-1 block text-sm font-medium text-black dark:text-white">
+        <Label htmlFor="mint-recipient" className="mb-1">
           Recipient
-        </label>
-        <input
+        </Label>
+        <Input
+          id="mint-recipient"
           type="text"
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           placeholder={address ?? "0x..."}
-          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
         />
-        <p className="mt-1 text-xs text-zinc-400">
+        <p className="mt-1 text-xs text-muted-foreground">
           Leave blank to mint to your own wallet.
         </p>
       </div>
 
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <label className="text-sm font-medium text-black dark:text-white">
-            Amount
-          </label>
-          <button
+          <Label htmlFor="mint-amount">Amount</Label>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
             onClick={() => setAmount("max")}
-            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
           >
             Max
-          </button>
+          </Button>
         </div>
-        <input
+        <Input
+          id="mint-amount"
           type="text"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.0"
-          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
         />
         {vaultBalance !== undefined && (
-          <p className="mt-1 text-xs text-zinc-400">
+          <p className="mt-1 text-xs text-muted-foreground">
             Vault balance: {vaultBalance.toString()} value units
           </p>
         )}
       </div>
 
       {writeError && (
-        <p className="text-xs text-red-500">
+        <p className="text-xs text-destructive">
           {writeError.message.length > 200
             ? writeError.message.slice(0, 200) + "..."
             : writeError.message}
@@ -165,17 +179,15 @@ function MintTab({ appId }: { appId: bigint }) {
         </p>
       )}
 
-      <button
-        onClick={handleMint}
-        disabled={!amount || isWorking}
-        className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isPending
-          ? "Confirm in wallet..."
-          : isConfirming
-            ? "Minting..."
-            : "Mint"}
-      </button>
+      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <Button onClick={handleMint} disabled={!amount || isWorking} className="w-full">
+          {isPending
+            ? "Confirm in wallet..."
+            : isConfirming
+              ? "Minting..."
+              : "Mint"}
+        </Button>
+      </motion.div>
     </div>
   );
 }
@@ -211,10 +223,14 @@ function RedeemTab({ appId }: { appId: bigint }) {
     query: { enabled: !!coinAddress && !!address },
   });
 
-  const { writeContract, isPending, data: txHash, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  const {
+    writeContract,
+    isPending,
+    data: txHash,
+    error: writeError,
+  } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   useEffect(() => {
     if (isSuccess) refetchCoin();
@@ -236,31 +252,33 @@ function RedeemTab({ appId }: { appId: bigint }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-        Redeeming burns your stablecoins and returns a pro-rata basket of all
-        collateral in the pool.
-      </div>
+      <Alert>
+        <AlertDescription className="text-xs">
+          Redeeming burns your stablecoins and returns a pro-rata basket of all
+          collateral in the pool.
+        </AlertDescription>
+      </Alert>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-black dark:text-white">
+        <Label htmlFor="redeem-amount" className="mb-1">
           Amount
-        </label>
-        <input
+        </Label>
+        <Input
+          id="redeem-amount"
           type="text"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.0"
-          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
         />
         {coinBalance !== undefined && (
-          <p className="mt-1 text-xs text-zinc-400">
+          <p className="mt-1 text-xs text-muted-foreground">
             Coin balance: {formatUnits(coinBalance, 18)}
           </p>
         )}
       </div>
 
       {writeError && (
-        <p className="text-xs text-red-500">
+        <p className="text-xs text-destructive">
           {writeError.message.length > 200
             ? writeError.message.slice(0, 200) + "..."
             : writeError.message}
@@ -273,17 +291,15 @@ function RedeemTab({ appId }: { appId: bigint }) {
         </p>
       )}
 
-      <button
-        onClick={handleRedeem}
-        disabled={!amount || isWorking}
-        className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isPending
-          ? "Confirm in wallet..."
-          : isConfirming
-            ? "Redeeming..."
-            : "Redeem"}
-      </button>
+      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <Button onClick={handleRedeem} disabled={!amount || isWorking} className="w-full">
+          {isPending
+            ? "Confirm in wallet..."
+            : isConfirming
+              ? "Redeeming..."
+              : "Redeem"}
+        </Button>
+      </motion.div>
     </div>
   );
 }
@@ -306,10 +322,14 @@ function WithdrawTab({ appId }: { appId: bigint }) {
     query: { enabled: !!contractAddress && !!address },
   });
 
-  const { writeContract, isPending, data: txHash, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  const {
+    writeContract,
+    isPending,
+    data: txHash,
+    error: writeError,
+  } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   useEffect(() => {
     if (isSuccess) refetchVault();
@@ -332,39 +352,41 @@ function WithdrawTab({ appId }: { appId: bigint }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-        Withdraw returns a pro-rata basket of collateral from the pool,
-        proportional to the value units withdrawn.
-      </div>
+      <Alert>
+        <AlertDescription className="text-xs">
+          Withdraw returns a pro-rata basket of collateral from the pool,
+          proportional to the value units withdrawn.
+        </AlertDescription>
+      </Alert>
 
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <label className="text-sm font-medium text-black dark:text-white">
-            Amount (value units)
-          </label>
-          <button
+          <Label htmlFor="withdraw-amount">Amount (value units)</Label>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
             onClick={() => setAmount("max")}
-            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
           >
             Max
-          </button>
+          </Button>
         </div>
-        <input
+        <Input
+          id="withdraw-amount"
           type="text"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="0.0"
-          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
         />
         {vaultBalance !== undefined && (
-          <p className="mt-1 text-xs text-zinc-400">
+          <p className="mt-1 text-xs text-muted-foreground">
             Vault balance: {vaultBalance.toString()} value units
           </p>
         )}
       </div>
 
       {writeError && (
-        <p className="text-xs text-red-500">
+        <p className="text-xs text-destructive">
           {writeError.message.length > 200
             ? writeError.message.slice(0, 200) + "..."
             : writeError.message}
@@ -377,17 +399,15 @@ function WithdrawTab({ appId }: { appId: bigint }) {
         </p>
       )}
 
-      <button
-        onClick={handleWithdraw}
-        disabled={!amount || isWorking}
-        className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isPending
-          ? "Confirm in wallet..."
-          : isConfirming
-            ? "Withdrawing..."
-            : "Withdraw"}
-      </button>
+      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <Button onClick={handleWithdraw} disabled={!amount || isWorking} className="w-full">
+          {isPending
+            ? "Confirm in wallet..."
+            : isConfirming
+              ? "Withdrawing..."
+              : "Withdraw"}
+        </Button>
+      </motion.div>
     </div>
   );
 }

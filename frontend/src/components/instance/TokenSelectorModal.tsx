@@ -4,6 +4,13 @@ import { useState, useMemo, useEffect, useCallback, useRef, memo } from "react";
 import { formatUnits } from "viem";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ExtendedChain, TokenAmount } from "@lifi/sdk";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 const ALL_CHAINS_ID = 0;
 const TOKEN_ITEM_HEIGHT = 52;
@@ -17,13 +24,13 @@ const scrollbarClasses =
 function TokenListItemSkeleton() {
   return (
     <div className="flex w-full items-center gap-3 px-4 py-2.5">
-      <div className="h-7 w-7 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
+      <div className="h-7 w-7 animate-pulse rounded-full bg-muted" />
       <div className="flex-1 min-w-0 space-y-1.5">
-        <div className="h-3.5 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
-        <div className="h-3 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="h-3.5 w-16 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-24 animate-pulse rounded bg-muted" />
       </div>
       <div className="space-y-1.5 text-right">
-        <div className="ml-auto h-3.5 w-12 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+        <div className="ml-auto h-3.5 w-12 animate-pulse rounded bg-muted" />
       </div>
     </div>
   );
@@ -50,7 +57,7 @@ const TokenListItem = memo(function TokenListItem({
   return (
     <button
       onClick={() => onClick(token, token.chainId)}
-      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
+      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent"
     >
       {token.logoURI ? (
         <img
@@ -59,18 +66,16 @@ const TokenListItem = memo(function TokenListItem({
           className="h-7 w-7 rounded-full"
         />
       ) : (
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-200 text-xs font-bold text-zinc-500 dark:bg-zinc-700">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
           {token.symbol.slice(0, 2)}
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-black dark:text-white">
-          {token.symbol}
-        </p>
-        <p className="truncate text-xs text-zinc-400">
+        <p className="text-sm font-medium">{token.symbol}</p>
+        <p className="truncate text-xs text-muted-foreground">
           {token.name}
           {showChain && chainName && (
-            <span className="text-zinc-300 dark:text-zinc-600">
+            <span className="text-muted-foreground/50">
               {" · "}{chainName}
             </span>
           )}
@@ -79,9 +84,7 @@ const TokenListItem = memo(function TokenListItem({
       <div className="text-right">
         <p
           className={`text-sm ${
-            hasBalance
-              ? "font-medium text-black dark:text-white"
-              : "text-zinc-300 dark:text-zinc-600"
+            hasBalance ? "font-medium" : "text-muted-foreground/40"
           }`}
         >
           {hasBalance
@@ -91,7 +94,7 @@ const TokenListItem = memo(function TokenListItem({
             : "0"}
         </p>
         {hasBalance && token.priceUSD && (
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-muted-foreground">
             $
             {(
               Number(token.priceUSD) *
@@ -135,6 +138,14 @@ export function TokenSelectorModal({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollReady, setScrollReady] = useState(0);
+
+  // Callback ref: when the scroll container mounts (dialog opens), bump a
+  // counter so the virtualizer re-measures against the new DOM element.
+  const scrollCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    scrollRef.current = node;
+    if (node) setScrollReady((c) => c + 1);
+  }, []);
 
   const chainMap = useMemo(() => {
     const map = new Map<number, ExtendedChain>();
@@ -214,7 +225,8 @@ export function TokenSelectorModal({
     return sorted;
   }, [selectedChainId, tokensByChain, debouncedSearch]);
 
-  // Virtualizer
+  // Virtualizer — scrollReady in the dependency list forces re-measurement
+  // when the Dialog portal remounts the scroll container.
   const virtualizer = useVirtualizer({
     count: filteredTokens.length,
     getScrollElement: () => scrollRef.current,
@@ -222,6 +234,11 @@ export function TokenSelectorModal({
     overscan: 5,
     getItemKey: (index) => `${filteredTokens[index].chainId}-${filteredTokens[index].address}-${index}`,
   });
+
+  // Re-measure virtualizer when the scroll container remounts
+  useEffect(() => {
+    if (scrollReady > 0) virtualizer.measure();
+  }, [scrollReady, virtualizer]);
 
   // Scroll to top when chain or search changes
   useEffect(() => {
@@ -236,42 +253,33 @@ export function TokenSelectorModal({
     [onSelect, onClose]
   );
 
-  if (!isOpen) return null;
-
   const showAllChains = selectedChainId === ALL_CHAINS_ID;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
-      <div className="relative z-10 flex h-[500px] w-full max-w-xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex h-[500px] max-w-xl overflow-hidden p-0">
         {/* Left: Chain list */}
-        <div className={`flex w-[140px] flex-shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-800/50 ${scrollbarClasses}`}>
+        <div className={`flex w-[140px] flex-shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border bg-muted/50 p-2 ${scrollbarClasses}`}>
           {/* All Chains option */}
           <button
             onClick={() => setSelectedChainId(ALL_CHAINS_ID)}
             className={`flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-medium transition-colors ${
               showAllChains
-                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-accent"
             }`}
           >
             <span className="truncate">All Chains</span>
           </button>
-          <div className="my-0.5 border-t border-zinc-200 dark:border-zinc-700" />
+          <div className="my-0.5 border-t border-border" />
           {chains.map((chain) => (
             <button
               key={chain.id}
               onClick={() => setSelectedChainId(chain.id)}
               className={`flex items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-medium transition-colors ${
                 selectedChainId === chain.id
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-accent"
               }`}
             >
               {chain.logoURI && (
@@ -289,37 +297,28 @@ export function TokenSelectorModal({
         {/* Right: Token list */}
         <div className="flex flex-1 flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
+          <DialogHeader className="flex flex-row items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-black dark:text-white">
-                Select Token
-              </h3>
+              <DialogTitle className="text-sm">Select Token</DialogTitle>
               {loadingBalancesChainId !== null && (
-                <span className="text-xs text-zinc-400">Loading balances...</span>
+                <span className="text-xs text-muted-foreground">Loading balances...</span>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-            >
-              &times;
-            </button>
-          </div>
+          </DialogHeader>
 
           {/* Search */}
-          <div className="border-b border-zinc-200 px-4 py-2 dark:border-zinc-700">
-            <input
+          <div className="border-b border-border px-4 py-2">
+            <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or symbol..."
-              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
             />
           </div>
 
           {/* Token list (virtualized) */}
           <div
-            ref={scrollRef}
+            ref={scrollCallbackRef}
             className={`flex-1 overflow-y-auto ${scrollbarClasses}`}
           >
             {isLoading ? (
@@ -330,7 +329,7 @@ export function TokenSelectorModal({
               </div>
             ) : filteredTokens.length === 0 ? (
               <div className="flex h-full items-center justify-center">
-                <p className="text-sm text-zinc-400">No tokens found</p>
+                <p className="text-sm text-muted-foreground">No tokens found</p>
               </div>
             ) : (
               <div
@@ -367,7 +366,7 @@ export function TokenSelectorModal({
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

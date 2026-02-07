@@ -14,6 +14,12 @@ import { getContractAddress } from "@/contracts/addresses";
 import { isAddress, type Address } from "viem";
 import { normalize } from "viem/ens";
 import { usePublicClient } from "wagmi";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { StaggerContainer, StaggerItem, motion } from "@/components/motion";
 
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -75,7 +81,11 @@ export function UserManagement({ appId }: { appId: bigint }) {
       const CHUNK = BigInt(9999);
       const allLogs: any[] = [];
 
-      for (let from = deployBlock; from <= currentBlock; from += CHUNK + BigInt(1)) {
+      for (
+        let from = deployBlock;
+        from <= currentBlock;
+        from += CHUNK + BigInt(1)
+      ) {
         const to = from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
         const logs = await publicClient.getContractEvents({
           address: contractAddress,
@@ -119,15 +129,20 @@ export function UserManagement({ appId }: { appId: bigint }) {
     },
   });
 
-  const { writeContract, isPending, data: txHash, error: writeError, reset } =
-    useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  const {
+    writeContract,
+    isPending,
+    data: txHash,
+    error: writeError,
+    reset,
+  } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   const inputInvalid =
     trimmedInput.length > 0 && !isRawAddress && !isEns;
-  const ensNotFound = isEns && !ensLoading && !ensResolvedAddress && !!ensName;
+  const ensNotFound =
+    isEns && !ensLoading && !ensResolvedAddress && !!ensName;
 
   // Clear input and refresh user list after successful transaction
   useEffect(() => {
@@ -150,60 +165,62 @@ export function UserManagement({ appId }: { appId: bigint }) {
 
   if (!isOwner) {
     return (
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800">
-        <div className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-          <h2 className="font-semibold text-black dark:text-white">Users</h2>
-        </div>
-        <div className="p-5">
-          <p className="text-sm text-zinc-500">
+      <Card>
+        <CardHeader>
+          <CardTitle>Users</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
             Only the instance owner can manage users.
           </p>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800">
-      <div className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-        <h2 className="font-semibold text-black dark:text-white">Users</h2>
-      </div>
-      <div className="flex flex-col gap-5 p-5">
-        <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-          Add a wallet address or ENS name to grant permission to hold and
-          interact with your stablecoin.
-        </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Users</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <Alert>
+          <AlertDescription className="text-xs">
+            Add a wallet address or ENS name to grant permission to hold and
+            interact with your stablecoin.
+          </AlertDescription>
+        </Alert>
 
         {/* Whitelisted users list */}
         <div>
-          <label className="mb-2 block text-sm font-medium text-black dark:text-white">
-            Whitelisted Users
-          </label>
+          <Label className="mb-2">Whitelisted Users</Label>
           {loadingUsers ? (
-            <p className="text-xs text-zinc-400">Loading...</p>
+            <p className="text-xs text-muted-foreground">Loading...</p>
           ) : users.length === 0 ? (
-            <p className="text-xs text-zinc-400">No users whitelisted yet.</p>
+            <p className="text-xs text-muted-foreground">
+              No users whitelisted yet.
+            </p>
           ) : (
-            <div className="flex flex-col gap-1">
+            <StaggerContainer className="flex flex-col gap-1">
               {users.map((user) => (
-                <div
-                  key={user}
-                  className="flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50"
-                >
-                  <span className="font-mono text-xs text-zinc-600 dark:text-zinc-300">
-                    {user}
-                  </span>
-                </div>
+                <StaggerItem key={user}>
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {user}
+                    </span>
+                  </div>
+                </StaggerItem>
               ))}
-            </div>
+            </StaggerContainer>
           )}
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-black dark:text-white">
+          <Label htmlFor="add-user" className="mb-1">
             Add User
-          </label>
-          <input
+          </Label>
+          <Input
+            id="add-user"
             type="text"
             value={addInput}
             onChange={(e) => {
@@ -211,20 +228,19 @@ export function UserManagement({ appId }: { appId: bigint }) {
               reset();
             }}
             placeholder="0x1234... or vitalik.eth"
-            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
           />
           {inputInvalid && (
-            <p className="mt-1 text-xs text-red-500">
+            <p className="mt-1 text-xs text-destructive">
               Invalid address or ENS name
             </p>
           )}
           {ensLoading && (
-            <p className="mt-1 text-xs text-zinc-400">
+            <p className="mt-1 text-xs text-muted-foreground">
               Resolving ENS name...
             </p>
           )}
           {ensNotFound && (
-            <p className="mt-1 text-xs text-red-500">
+            <p className="mt-1 text-xs text-destructive">
               ENS name not found
             </p>
           )}
@@ -236,11 +252,11 @@ export function UserManagement({ appId }: { appId: bigint }) {
         </div>
 
         {writeError && (
-          <p className="text-xs text-red-500">
+          <p className="text-xs text-destructive">
             {writeError.message.length > 200
               ? writeError.message.slice(0, 200) + "..."
               : writeError.message}
-        </p>
+          </p>
         )}
 
         {isSuccess && (
@@ -249,18 +265,22 @@ export function UserManagement({ appId }: { appId: bigint }) {
           </p>
         )}
 
-        <button
-          onClick={handleSubmit}
-          disabled={!resolvedAddress || isPending || isConfirming || ensLoading}
-          className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isPending
-            ? "Confirm in wallet..."
-            : isConfirming
-              ? "Adding..."
-              : "Add User"}
-        </button>
-      </div>
-    </div>
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              !resolvedAddress || isPending || isConfirming || ensLoading
+            }
+            className="w-full"
+          >
+            {isPending
+              ? "Confirm in wallet..."
+              : isConfirming
+                ? "Adding..."
+                : "Add User"}
+          </Button>
+        </motion.div>
+      </CardContent>
+    </Card>
   );
 }
