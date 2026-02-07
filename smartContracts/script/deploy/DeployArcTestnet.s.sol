@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import "../../../src/core/HardPeg.sol";
-import "../../../src/Y_Timelock.sol";
+import "../../../src/Timelock.sol";
 import "../../../src/core/shared/CollateralManager.sol";
 
 /**

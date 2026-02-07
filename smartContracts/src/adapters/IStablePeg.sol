@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {CollateralInput} from "../core/shared/CollateralManager.sol";
+import {AppInput} from "../core/shared/AppManager.sol";
+
 /// @title IStablePeg
 /// @notice Common interface for frontend to interact with any peg type
 interface IStablePeg {

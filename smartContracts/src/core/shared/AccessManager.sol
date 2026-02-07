@@ -150,9 +150,18 @@ abstract contract AccessManager {
      * @notice Checks whether a user holds a specific role.
      * @param user Address to query
      * @param role Role bit to check
+     * note used by timelock - do not delete
      */
     function hasRole(address user, uint256 role) external view returns (bool) {
         return roles[user] & role != 0;
+    }
+
+    /**
+     * @notice Checks whether a user is the owner
+     * note used by timelock - do not delete
+     */
+    function isOwner(address account) external view returns (bool) {
+        return account == owner;
     }
 
     /**

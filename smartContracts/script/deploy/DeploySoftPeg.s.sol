@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Script.sol";
 import {SoftPeg} from "../../../src/core/SoftPeg.sol";
 import {SoftPegAdapter} from "../../../src/adapters/SoftPegAdapter.sol";
-import "../../../src/Y_Timelock.sol";
+import "../../../src/Timelock.sol";
 import "../../../src/core/shared/CollateralManager.sol";
 import "../../../test/utils/CoreLib.t.sol";
 

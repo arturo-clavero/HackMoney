@@ -18,5 +18,11 @@ library Error {
     error LiquidationDust();
     error CapExceeded();
     error OutstandingDebt();
+    error TxNotQueued();
+    error TxStillLocked();
+    error TxExpired();
+    error TxFailed();
+    error InvalidTarget();
+    error InvalidSelector();
 
 }   
