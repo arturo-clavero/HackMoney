@@ -813,9 +813,11 @@ export function DepositFlow({ appId }: { appId: bigint }) {
               </Button>
             )}
             {!flowError && (
-              <Button onClick={handleDeposit} disabled={!canDeposit}>
-                {executing ? "Depositing..." : "Deposit"}
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button onClick={handleDeposit} disabled={!canDeposit}>
+                  {executing ? "Depositing..." : "Deposit"}
+                </Button>
+              </motion.div>
             )}
           </div>
         </>

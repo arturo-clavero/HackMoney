@@ -12,7 +12,7 @@ import { UserManagement } from "@/components/instance/UserManagement";
 import { VaultOperations } from "@/components/instance/VaultOperations";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { PageTransition } from "@/components/motion";
+import { PageTransition, motion } from "@/components/motion";
 
 export default function InstancePage({
   params,
@@ -77,9 +77,11 @@ export default function InstancePage({
           <p className="text-muted-foreground">
             Connect your wallet to view this instance.
           </p>
-          <Button size="lg" onClick={() => open()}>
-            Connect Wallet
-          </Button>
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button size="lg" onClick={() => open()}>
+              Connect Wallet
+            </Button>
+          </motion.div>
         </div>
       </div>
     );

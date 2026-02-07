@@ -224,9 +224,11 @@ export default function Home() {
               Create and manage your own stablecoin instances backed by
               protocol-approved collateral.
             </p>
-            <Button size="lg" onClick={() => open()}>
-              Connect Wallet
-            </Button>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button size="lg" onClick={() => open()}>
+                Connect Wallet
+              </Button>
+            </motion.div>
           </div>
         </PageTransition>
       </div>

@@ -212,9 +212,11 @@ export function StepDeploy() {
               Switch to Arc Testnet
             </Button>
           ) : (
-            <Button size="lg" onClick={deploy}>
-              Deploy Instance
-            </Button>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button size="lg" onClick={deploy}>
+                Deploy Instance
+              </Button>
+            </motion.div>
           )}
         </>
       )}

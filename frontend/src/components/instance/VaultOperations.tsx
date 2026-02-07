@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { motion } from "@/components/motion";
 
 export function VaultOperations({ appId }: { appId: bigint }) {
   return (
@@ -178,13 +179,15 @@ function MintTab({ appId }: { appId: bigint }) {
         </p>
       )}
 
-      <Button onClick={handleMint} disabled={!amount || isWorking}>
-        {isPending
-          ? "Confirm in wallet..."
-          : isConfirming
-            ? "Minting..."
-            : "Mint"}
-      </Button>
+      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <Button onClick={handleMint} disabled={!amount || isWorking} className="w-full">
+          {isPending
+            ? "Confirm in wallet..."
+            : isConfirming
+              ? "Minting..."
+              : "Mint"}
+        </Button>
+      </motion.div>
     </div>
   );
 }
@@ -288,13 +291,15 @@ function RedeemTab({ appId }: { appId: bigint }) {
         </p>
       )}
 
-      <Button onClick={handleRedeem} disabled={!amount || isWorking}>
-        {isPending
-          ? "Confirm in wallet..."
-          : isConfirming
-            ? "Redeeming..."
-            : "Redeem"}
-      </Button>
+      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <Button onClick={handleRedeem} disabled={!amount || isWorking} className="w-full">
+          {isPending
+            ? "Confirm in wallet..."
+            : isConfirming
+              ? "Redeeming..."
+              : "Redeem"}
+        </Button>
+      </motion.div>
     </div>
   );
 }
@@ -394,13 +399,15 @@ function WithdrawTab({ appId }: { appId: bigint }) {
         </p>
       )}
 
-      <Button onClick={handleWithdraw} disabled={!amount || isWorking}>
-        {isPending
-          ? "Confirm in wallet..."
-          : isConfirming
-            ? "Withdrawing..."
-            : "Withdraw"}
-      </Button>
+      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <Button onClick={handleWithdraw} disabled={!amount || isWorking} className="w-full">
+          {isPending
+            ? "Confirm in wallet..."
+            : isConfirming
+              ? "Withdrawing..."
+              : "Withdraw"}
+        </Button>
+      </motion.div>
     </div>
   );
 }

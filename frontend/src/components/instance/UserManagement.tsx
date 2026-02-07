@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { StaggerContainer, StaggerItem } from "@/components/motion";
+import { StaggerContainer, StaggerItem, motion } from "@/components/motion";
 
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -265,18 +265,21 @@ export function UserManagement({ appId }: { appId: bigint }) {
           </p>
         )}
 
-        <Button
-          onClick={handleSubmit}
-          disabled={
-            !resolvedAddress || isPending || isConfirming || ensLoading
-          }
-        >
-          {isPending
-            ? "Confirm in wallet..."
-            : isConfirming
-              ? "Adding..."
-              : "Add User"}
-        </Button>
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              !resolvedAddress || isPending || isConfirming || ensLoading
+            }
+            className="w-full"
+          >
+            {isPending
+              ? "Confirm in wallet..."
+              : isConfirming
+                ? "Adding..."
+                : "Add User"}
+          </Button>
+        </motion.div>
       </CardContent>
     </Card>
   );
