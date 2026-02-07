@@ -51,7 +51,7 @@ export function useBridgeToArc(): UseBridgeToArcReturn {
           throw new Error("Could not get provider from wallet connector");
         }
 
-        const adapter = await createViemAdapterFromProvider({ provider });
+        const adapter = await createViemAdapterFromProvider({ provider: provider as any });
 
         const kit = new BridgeKit();
 

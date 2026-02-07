@@ -13,6 +13,8 @@ import { getContractAddress } from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
 import { useState, useEffect } from "react";
 
+const ARC_CHAIN_ID = 5042002;
+
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
@@ -23,12 +25,11 @@ interface Instance {
 }
 
 function InstancesList() {
-  const { caipAddress, address } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { address } = useAppKitAccount();
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -104,6 +105,7 @@ function InstancesList() {
       address: inst.coin,
       abi: erc20Abi,
       functionName: "name" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: instances.length > 0 },
   });
@@ -113,17 +115,10 @@ function InstancesList() {
       address: inst.coin,
       abi: erc20Abi,
       functionName: "symbol" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: instances.length > 0 },
   });
-
-  if (!contractAddress) {
-    return (
-      <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
-        Switch to a supported network to see your instances.
-      </div>
-    );
-  }
 
   if (!loaded) {
     return (

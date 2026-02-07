@@ -53,7 +53,7 @@ export function CrossChainDeposit({ appId }: { appId: bigint }) {
   }, [clearQuote, resetStatus]);
 
   // ─── Auto-quote with debounce ───────────────────────────────────────────
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
