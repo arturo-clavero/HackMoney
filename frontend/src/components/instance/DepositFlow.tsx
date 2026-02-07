@@ -24,6 +24,7 @@ import {
   ARC_USDC,
   isCircleBridgeChain,
   getCircleBridgeConfig,
+  QUOTE_DESTINATIONS,
 } from "@/contracts/addresses";
 import { useLifiTokens, useLifiQuote, useLifiExecution } from "@/hooks/useLifi";
 import { useBridgeToArc } from "@/hooks/useBridgeToArc";
@@ -35,6 +36,14 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "@/components/motion";
+
+function getChainLabel(chainId: number): string {
+  const labels: Record<number, string> = {
+    42161: "Arbitrum",
+    8453: "Base",
+  };
+  return labels[chainId] ?? `Chain ${chainId}`;
+}
 
 // ─── Route Detection ─────────────────────────────────────────────────────────
 
@@ -354,18 +363,16 @@ export function DepositFlow({ appId }: { appId: bigint }) {
       return;
     }
 
-    // LI.FI only supports mainnet — quote swap to USDC on Arbitrum mainnet
-    const ARB_MAINNET_CHAIN_ID = 42161;
-    const ARB_MAINNET_USDC = USDC_ADDRESSES[ARB_MAINNET_CHAIN_ID];
-
     debounceRef.current = setTimeout(() => {
       fetchQuote({
         fromChain: sourceChainId,
-        toChain: ARB_MAINNET_CHAIN_ID,
         fromToken: sourceToken.address,
-        toToken: ARB_MAINNET_USDC,
         fromAmount: rawAmount,
         fromAddress: address,
+        destinations: QUOTE_DESTINATIONS.map((d) => ({
+          toChain: d.chainId,
+          toToken: d.usdc,
+        })),
       });
     }, 500);
 
@@ -407,22 +414,20 @@ export function DepositFlow({ appId }: { appId: bigint }) {
         try {
           const stepLabel = stepLabels[i];
 
-          if (stepLabel === "Swap to USDC") {
+          if (stepLabel.startsWith("Swap to USDC")) {
             // ── LI.FI Swap Step ──
             if (!quote) throw new Error("No quote available");
             await executeSwap(quote.route);
             setSwapStatus("done");
-          } else if (stepLabel === "Bridge to Arc") {
+          } else if (stepLabel.startsWith("Bridge to Arc")) {
             // ── Circle Bridge Step ──
             const bridgeChainId =
-              routeType === "bridge" ? sourceChainId! : 421614; // After swap, USDC is on Arb Sepolia
+              routeType === "bridge" ? sourceChainId! : quote!.destinationChainId;
             const config = getCircleBridgeConfig(bridgeChainId);
             if (!config) throw new Error("Bridge chain config not found");
 
-            // Switch to bridge source chain
-            if (walletChainId !== bridgeChainId) {
-              await switchChainAsync({ chainId: bridgeChainId });
-            }
+            // Always switch — walletChainId is stale inside the async loop
+            await switchChainAsync({ chainId: bridgeChainId });
 
             // Determine bridge amount
             let bridgeAmount: string;
@@ -448,10 +453,8 @@ export function DepositFlow({ appId }: { appId: bigint }) {
             // ── Approve + Deposit Step ──
             if (!contractAddress) throw new Error("Contract address not found");
 
-            // Switch to Arc
-            if (walletChainId !== ARC_CHAIN_ID) {
-              await switchChainAsync({ chainId: ARC_CHAIN_ID });
-            }
+            // Always switch — walletChainId is stale inside the async loop
+            await switchChainAsync({ chainId: ARC_CHAIN_ID });
 
             // Determine deposit amount
             let depositRaw: bigint;
@@ -505,7 +508,6 @@ export function DepositFlow({ appId }: { appId: bigint }) {
       quote,
       sourceChainId,
       amount,
-      walletChainId,
       contractAddress,
       appId,
       executeSwap,
@@ -524,6 +526,13 @@ export function DepositFlow({ appId }: { appId: bigint }) {
   const handleDeposit = useCallback(() => {
     if (!route || !sourceToken || !amount) return;
     const stepLabels = getRouteSteps(route);
+    if (route === "full" && quote?.destinationChainId) {
+      const chainName = getChainLabel(quote.destinationChainId);
+      const swapIdx = stepLabels.indexOf("Swap to USDC");
+      if (swapIdx >= 0) {
+        stepLabels[swapIdx] = `Swap to USDC (${chainName})`;
+      }
+    }
     const initialSteps: StepState[] = stepLabels.map((label) => ({
       label,
       status: "pending",
@@ -533,7 +542,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     setFlowError(null);
     depositFiredRef.current = false;
     executeFromStep(0, route, stepLabels);
-  }, [route, sourceToken, amount, executeFromStep]);
+  }, [route, sourceToken, amount, quote, executeFromStep]);
 
   // ─── Retry from failed step ───────────────────────────────────────────
   const handleRetry = useCallback(() => {
@@ -767,6 +776,11 @@ export function DepositFlow({ appId }: { appId: bigint }) {
                         ~{Math.ceil(quote.executionDuration / 60)} min (swap) + ~15 min (bridge)
                       </span>
                     </div>
+                    {quote.routesChecked > 1 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Best of {quote.routesChecked} routes
+                      </p>
+                    )}
                   </div>
                 ) : null}
               </CardContent>
