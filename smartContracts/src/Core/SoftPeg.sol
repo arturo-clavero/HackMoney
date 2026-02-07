@@ -18,7 +18,6 @@ struct Position {
     mapping(address token => uint256 shares) colShares;
     address[] colUsed;
     uint256 debtShares;
-    // uint256 mintCredit;
 }
 struct ColVault {
     uint256 totalAssets;
@@ -33,21 +32,11 @@ contract SoftPeg is AppManager, Security, Oracle {
     uint256 constant MAX_COLLATERAL_TYPES = 5;
     uint256 private constant DEFAULT_COIN_SCALE = 1e18;
 
-//3. User Accounting
     mapping(uint256 id => mapping (address user => Position)) private userPositions;
 
-//1. Global Collateral 
     mapping(address token => ColVault) private collateralVaults;
 
-//2. Global debt
     uint256 private totalDebtShares;
-
-//4. Liquidators Pool
-    uint256 totalPoolAssets;
-    uint256 totalPoolShares;
-    address[] poolCollateralTypes;
-    mapping(address token => uint256 assets) private poolCollateral;
-    mapping(address user => uint256 shares) private poolShares;
 
     constructor(
         address owner, 
@@ -60,10 +49,7 @@ contract SoftPeg is AppManager, Security, Oracle {
     Security(globalDebtcap, mintCapPerTx)
     {}
 
-    
-
     function deposit(uint256 id, address token, uint256 rawAmount) external {
-        //check & transfer token
         if (!_isAppCollateralAllowed(id, token))
             revert Error.CollateralNotSupportedByApp();
         if (rawAmount == 0)
@@ -71,7 +57,6 @@ contract SoftPeg is AppManager, Security, Oracle {
         IERC20(token).safeTransferFrom(msg.sender, address(this), rawAmount);
         uint256 valueAmount = rawAmount / globalCollateralConfig[token].scale;
 
-        //check if new collateral share
         Position storage pos = userPositions[id][msg.sender];
         uint256 currentShare = pos.colShares[token];
         if (currentShare == 0){
@@ -80,10 +65,6 @@ contract SoftPeg is AppManager, Security, Oracle {
             pos.colUsed.push(token);
         }
 
-        //calc share & update:
-        //increase user shares
-        //increase vault total shares
-        //increase vault total assets
         ColVault storage vault = collateralVaults[token];
         uint256 newShare = valueAmount.calcNewShare(vault.totalAssets, vault.totalShares);
         vault.totalAssets += valueAmount;
@@ -110,7 +91,6 @@ contract SoftPeg is AppManager, Security, Oracle {
     function mint(uint256 id, address to, uint256 rawAmount) external {
         if (rawAmount == 0)
             revert Error.InvalidAmount();
-        //READ POSITION FROM MINTER
         Position storage minterPos = userPositions[id][msg.sender];
 
         uint256 maxMintable_value = _getMintCredit(minterPos);
@@ -122,17 +102,11 @@ contract SoftPeg is AppManager, Security, Oracle {
         if (maxMintable_value == 0 || rawAmount > maxMintable_value * DEFAULT_COIN_SCALE)
             revert Error.InsufficientCollateral();
         
-        //calc share & update:
-        //increase user debt shares OF MINTER_POSITION!
-        //increase total debt shares
-        //increase total debt
-        //decrease the mint credits
         uint256 newShare = newDebt_value.calcNewShare(totalDebt, totalDebtShares);
         minterPos.debtShares += newShare;
         totalDebtShares += newShare;
         totalDebt += newDebt_value;
 
-        //mint
         _mintAppToken(id, to, rawAmount);
     }
 
@@ -150,11 +124,6 @@ contract SoftPeg is AppManager, Security, Oracle {
         if (!isLiquidation && pos.debtShares != 0)
             revert Error.UserHasDebt();
 
-        //calc share & update:
-        //decrease user shares
-        //decrease vault total shares
-        //decrease vault total assets
-
         ColVault storage vault = collateralVaults[token];
         uint256 shareOut = valueAmount.calcShares(vault.totalShares, vault.totalAssets);
         vault.totalAssets -= valueAmount;
@@ -168,7 +137,7 @@ contract SoftPeg is AppManager, Security, Oracle {
         IERC20(token).safeTransfer(receiver, rawAmount);
     }
 
-    function repay(uint256 id, uint256 rawAmount) external {
+    function repay(uint256 id, uint256 rawAmount) public {
         if (rawAmount == 0)
             revert Error.InvalidAmount();
         address token = _getAppConfig(id).coin;
@@ -184,126 +153,8 @@ contract SoftPeg is AppManager, Security, Oracle {
         //send propprtonal collateral? 
     }
 
-   // function liquidate(uint256 id, address user, uint256 rawAmountIn) external {
-    //     if (rawAmountIn == 0) revert Error.InvalidAmount();
-
-    //     (
-    //         uint256 maxLiquidationValue,
-    //         uint256 actualDebt
-    //     ) = _computeLiquidationValues(id, user);
-
-    //     uint256 valueAmount = rawAmountIn / DEFAULT_COIN_SCALE;
-    //     if (valueAmount > maxLiquidationValue)
-    //         valueAmount = maxLiquidationValue;
-
-    //     uint256 sharesToBurn =
-    //         valueAmount.calcNewShare(totalDebt, totalDebtShares);
-
-    //     if (sharesToBurn == 0)
-    //         revert Error.LiquidationDust();
-
-    //     _liquidateShares(id, user, sharesToBurn, msg.sender);
-    // }
-
-    // function liquidateShares(uint256 id, address user,uint256 debtSharesToBurn) external {
-    //     _revertIfHealthy(id, user);
-
-    //     _liquidateShares(
-    //         id,
-    //         user,
-    //         debtSharesToBurn,
-    //         msg.sender
-    //     );
-    // }
-
-    // function _liquidateShares(uint256 id, address user, uint256 debtSharesToBurn, address receiver) internal {
-    //     Position storage pos = userPositions[id][user];
-    //     if (debtSharesToBurn == 0 || debtSharesToBurn > pos.debtShares)
-    //         revert Error.InvalidAmount();
-
-    //     uint256 valueAmount = debtSharesToBurn.calcAssets(totalDebt, totalDebtShares);
-
-    //     // burn stable from caller
-    //     _burnAppToken(id, valueAmount * DEFAULT_COIN_SCALE);
-
-    //     // accounting
-    //     pos.debtShares -= debtSharesToBurn;
-    //     totalDebtShares -= debtSharesToBurn;
-    //     totalDebt -= valueAmount;
-
-    //     // collateral out
-    //     _distributeCollateralProRata(
-    //         id,
-    //         user,
-    //         valueAmount,
-    //         receiver
-    //     );
-    // }
-
-    // function _distributeCollateralProRata(
-    //     uint256 id,
-    //     address user,
-    //     uint256 valueAmount,
-    //     address receiver
-    // ) internal {
-    //     Position storage pos = userPositions[id][user];
-
-    //     uint256 len = pos.colUsed.length;
-    //     uint256 totalValue;
-
-    //     uint256[] memory values = new uint256[](len);
-
-    //     for (uint256 i; i < len; i++) {
-    //         address col = pos.colUsed[i];
-    //         uint256 share = pos.colShares[col];
-    //         if (share == 0) continue;
-
-    //         ColVault storage v = collateralVaults[col];
-    //         uint256 assets = share.calcAssets(v.totalShares, v.totalAssets);
-    //         uint256 price = getPrice(col);
-
-    //         uint256 value = (assets * price) / 1e8;
-    //         values[i] = value;
-    //         totalValue += value;
-    //     }
-
-    //     for (uint256 i; i < len; i++) {
-    //         if (values[i] == 0) continue;
-
-    //         uint256 outValue =
-    //             RiskMath.safeFirstMulDiv(valueAmount, values[i], totalValue);
-
-    //         _withdrawCollateral(id, user, pos.colUsed[i], outValue, receiver);
-    //     }
-    // }
-
-    
-    function getUserColShares(uint256 id, address user, address token) external returns (uint256) {
-        return (userPositions[id][user].colShares[token]);
-    }
-
-    function getUserDebtShares(uint256 id, address user) external returns (uint256) {
-        return (userPositions[id][user].debtShares);
-    }
-
-    function getUsersColUsed(uint256 id, address user) external returns (address[] memory) {
-        return (userPositions[id][user].colUsed);
-    }
-
-    function getUsersMintCredit(uint256 id, address user) external returns (uint256) {
-        Position storage pos = userPositions[id][user];
-        return _getMintCredit(pos);
-    }
-
-    function getCollateralVaults(address token) external returns (ColVault memory) {
-        return (collateralVaults[token]);
-    }
-
-    function getTotalDebtShares() external returns (uint256){
-        return totalDebtShares;
-    }
-    function getTotalDebt() external returns(uint256){
-        return totalDebt;
+    function redeam(uint256 id, uint256 rawAmount) external {
+        repay(id, rawAmount);
     }
 
     function liquidate(uint256 id, address user, uint256 rawAmountIn) external {
@@ -377,6 +228,36 @@ contract SoftPeg is AppManager, Security, Oracle {
             IERC20(colToken).safeTransfer(msg.sender, rawAmountOut);
         }
     }
+
+    
+    function getUserColShares(uint256 id, address user, address token) external returns (uint256) {
+        return (userPositions[id][user].colShares[token]);
     }
+
+    function getUserDebtShares(uint256 id, address user) external returns (uint256) {
+        return (userPositions[id][user].debtShares);
+    }
+
+    function getUsersColUsed(uint256 id, address user) external returns (address[] memory) {
+        return (userPositions[id][user].colUsed);
+    }
+
+    function getUsersMintCredit(uint256 id, address user) external returns (uint256) {
+        Position storage pos = userPositions[id][user];
+        return _getMintCredit(pos);
+    }
+
+    function getCollateralVaults(address token) external returns (ColVault memory) {
+        return (collateralVaults[token]);
+    }
+
+    function getTotalDebtShares() external returns (uint256){
+        return totalDebtShares;
+    }
+    function getTotalDebt() external returns(uint256){
+        return totalDebt;
+    }
+
+}
 
  
