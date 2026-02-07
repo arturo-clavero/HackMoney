@@ -23,6 +23,33 @@ export const USDC_ADDRESSES: Record<number, Address> = {
   5042002: "0x3600000000000000000000000000000000000000", // Arc testnet
 };
 
+export const ARC_CHAIN_ID = 5042002;
+export const ARC_USDC = USDC_ADDRESSES[ARC_CHAIN_ID];
+
+export const CIRCLE_BRIDGE_CHAINS: Record<
+  number,
+  { usdc: Address; bridgeChainName: string; label: string }
+> = {
+  42161: {
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    bridgeChainName: "Arbitrum",
+    label: "Arbitrum",
+  },
+  421614: {
+    usdc: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    bridgeChainName: "Arbitrum_Sepolia",
+    label: "Arbitrum Sepolia",
+  },
+};
+
 export function getContractAddress(chainId: number) {
   return CONTRACT_ADDRESSES[chainId] ?? null;
+}
+
+export function isCircleBridgeChain(chainId: number): boolean {
+  return chainId in CIRCLE_BRIDGE_CHAINS;
+}
+
+export function getCircleBridgeConfig(chainId: number) {
+  return CIRCLE_BRIDGE_CHAINS[chainId] ?? null;
 }

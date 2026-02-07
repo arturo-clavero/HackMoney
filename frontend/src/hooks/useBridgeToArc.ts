@@ -11,7 +11,7 @@ export interface UseBridgeToArcReturn {
   status: BridgeStatus;
   error: string | null;
   txHash: string | null;
-  bridge: (amount: string) => Promise<void>;
+  bridge: (amount: string, sourceChainName?: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -25,7 +25,7 @@ export function useBridgeToArc(): UseBridgeToArcReturn {
   const [txHash, setTxHash] = useState<string | null>(null);
 
   const bridge = useCallback(
-    async (amount: string) => {
+    async (amount: string, sourceChainName: string = "Arbitrum_Sepolia") => {
       if (!connector) {
         setStatus("error");
         setError("Wallet not connected");
@@ -62,8 +62,14 @@ export function useBridgeToArc(): UseBridgeToArcReturn {
           }
         });
 
+        const sourceChain =
+          BridgeChain[sourceChainName as keyof typeof BridgeChain];
+        if (!sourceChain) {
+          throw new Error(`Unknown bridge chain: ${sourceChainName}`);
+        }
+
         const result = await kit.bridge({
-          from: { adapter, chain: BridgeChain.Arbitrum_Sepolia },
+          from: { adapter, chain: sourceChain },
           to: { adapter, chain: BridgeChain.Arc_Testnet },
           amount,
         });
