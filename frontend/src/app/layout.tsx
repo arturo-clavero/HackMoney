@@ -31,7 +31,7 @@ export default async function RootLayout({
   const initialState = cookieToInitialState(config, headersList.get("cookie"));
 
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
