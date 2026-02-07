@@ -32,36 +32,49 @@ function InstancesList() {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  // One-time fetch of historical events (deterministic loading state)
+  // One-time fetch of historical events.
+  // Some RPCs (e.g. Arc testnet) limit eth_getLogs to 10k blocks, so we
+  // paginate in chunks from the deploy block to the current block.
   useEffect(() => {
-    if (!contractAddress || !address || !publicClient) return;
+    if (!contractAddress || !address || !publicClient || !addresses) return;
     let cancelled = false;
 
-    publicClient
-      .getContractEvents({
-        address: contractAddress,
-        abi: hardPegAbi,
-        eventName: "RegisteredApp",
-        args: { owner: address as Address },
-        fromBlock: BigInt(0),
-      })
-      .then((logs) => {
-        if (cancelled) return;
-        const newInstances = logs.map((log) => ({
-          id: log.args.id!,
-          coin: log.args.coin! as Address,
-        }));
-        setInstances(newInstances);
-        setLoaded(true);
-      })
-      .catch(() => {
+    (async () => {
+      try {
+        const currentBlock = await publicClient.getBlockNumber();
+        const deployBlock = addresses.deployBlock;
+        const CHUNK = BigInt(9999);
+        const allLogs: typeof instances = [];
+
+        for (let from = deployBlock; from <= currentBlock; from += CHUNK + BigInt(1)) {
+          if (cancelled) return;
+          const to = from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
+          const logs = await publicClient.getContractEvents({
+            address: contractAddress,
+            abi: hardPegAbi,
+            eventName: "RegisteredApp",
+            args: { owner: address as Address },
+            fromBlock: from,
+            toBlock: to,
+          });
+          for (const log of logs) {
+            allLogs.push({ id: log.args.id!, coin: log.args.coin! as Address });
+          }
+        }
+
+        if (!cancelled) {
+          setInstances(allLogs);
+          setLoaded(true);
+        }
+      } catch {
         if (!cancelled) setLoaded(true);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [contractAddress, address, publicClient]);
+  }, [contractAddress, address, publicClient, addresses]);
 
   // Watch for NEW events while the page is open
   useWatchContractEvent({

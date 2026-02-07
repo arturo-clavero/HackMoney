@@ -16,7 +16,7 @@ import {
   type Address,
   maxUint256,
 } from "viem";
-import { CrossChainDeposit } from "./CrossChainDeposit";
+import { DepositFlow } from "./DepositFlow";
 
 type Tab = "deposit" | "mint" | "redeem" | "withdraw";
 
@@ -53,7 +53,7 @@ export function VaultOperations({ appId }: { appId: bigint }) {
         ))}
       </div>
       <div className="p-5">
-        {activeTab === "deposit" && <CrossChainDeposit appId={appId} />}
+        {activeTab === "deposit" && <DepositFlow appId={appId} />}
         {activeTab === "mint" && <MintTab appId={appId} />}
         {activeTab === "redeem" && <RedeemTab appId={appId} />}
         {activeTab === "withdraw" && <WithdrawTab appId={appId} />}
@@ -64,10 +64,11 @@ export function VaultOperations({ appId }: { appId: bigint }) {
 
 // ─── Mint Tab ────────────────────────────────────────────────────────────────
 
+const ARC_CHAIN_ID = 5042002;
+
 function MintTab({ appId }: { appId: bigint }) {
-  const { caipAddress, address } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { address } = useAppKitAccount();
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
   const [recipient, setRecipient] = useState("");
@@ -78,6 +79,7 @@ function MintTab({ appId }: { appId: bigint }) {
     abi: hardPegAbi,
     functionName: "getVaultBalance",
     args: [appId, address as Address],
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress && !!address },
   });
 
@@ -99,6 +101,7 @@ function MintTab({ appId }: { appId: bigint }) {
       abi: hardPegAbi,
       functionName: "mint",
       args: [appId, to, rawAmount],
+      chainId: ARC_CHAIN_ID,
     });
   };
 
@@ -180,9 +183,8 @@ function MintTab({ appId }: { appId: bigint }) {
 // ─── Redeem Tab ──────────────────────────────────────────────────────────────
 
 function RedeemTab({ appId }: { appId: bigint }) {
-  const { caipAddress, address } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { address } = useAppKitAccount();
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
   const [amount, setAmount] = useState("");
@@ -193,6 +195,7 @@ function RedeemTab({ appId }: { appId: bigint }) {
     abi: hardPegAbi,
     functionName: "getAppConfig",
     args: [appId],
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress },
   });
 
@@ -204,6 +207,7 @@ function RedeemTab({ appId }: { appId: bigint }) {
     abi: erc20Abi,
     functionName: "balanceOf",
     args: [address as Address],
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!coinAddress && !!address },
   });
 
@@ -224,6 +228,7 @@ function RedeemTab({ appId }: { appId: bigint }) {
       abi: hardPegAbi,
       functionName: "redeam",
       args: [coinAddress, rawAmount],
+      chainId: ARC_CHAIN_ID,
     });
   };
 
@@ -286,9 +291,8 @@ function RedeemTab({ appId }: { appId: bigint }) {
 // ─── Withdraw Tab ────────────────────────────────────────────────────────────
 
 function WithdrawTab({ appId }: { appId: bigint }) {
-  const { caipAddress, address } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { address } = useAppKitAccount();
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
   const [amount, setAmount] = useState("");
@@ -298,6 +302,7 @@ function WithdrawTab({ appId }: { appId: bigint }) {
     abi: hardPegAbi,
     functionName: "getVaultBalance",
     args: [appId, address as Address],
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress && !!address },
   });
 
@@ -319,6 +324,7 @@ function WithdrawTab({ appId }: { appId: bigint }) {
       abi: hardPegAbi,
       functionName: "withdrawCollateral",
       args: [appId, valueAmount],
+      chainId: ARC_CHAIN_ID,
     });
   };
 

@@ -18,12 +18,13 @@ function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+const ARC_CHAIN_ID = 5042002;
+
 export function UserManagement({ appId }: { appId: bigint }) {
-  const { caipAddress, address } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { address } = useAppKitAccount();
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
   const queryClient = useQueryClient();
 
   const [addInput, setAddInput] = useState("");
@@ -35,6 +36,7 @@ export function UserManagement({ appId }: { appId: bigint }) {
     abi: hardPegAbi,
     functionName: "getAppConfig",
     args: [appId],
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress },
   });
 
@@ -44,16 +46,27 @@ export function UserManagement({ appId }: { appId: bigint }) {
 
   // Fetch past UserListUpdated events to build the user list
   const fetchUsers = useCallback(async () => {
-    if (!publicClient || !contractAddress) return;
+    if (!publicClient || !contractAddress || !addresses) return;
     setLoadingUsers(true);
     try {
-      const logs = await publicClient.getContractEvents({
-        address: contractAddress,
-        abi: hardPegAbi,
-        eventName: "UserListUpdated",
-        args: { id: appId },
-        fromBlock: BigInt(0),
-      });
+      const currentBlock = await publicClient.getBlockNumber();
+      const deployBlock = addresses.deployBlock;
+      const CHUNK = BigInt(9999);
+      const allLogs: any[] = [];
+
+      for (let from = deployBlock; from <= currentBlock; from += CHUNK + BigInt(1)) {
+        const to = from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
+        const logs = await publicClient.getContractEvents({
+          address: contractAddress,
+          abi: hardPegAbi,
+          eventName: "UserListUpdated",
+          args: { id: appId },
+          fromBlock: from,
+          toBlock: to,
+        });
+        allLogs.push(...logs);
+      }
+      const logs = allLogs;
 
       const userSet = new Set<string>();
       for (const log of logs) {
@@ -72,7 +85,7 @@ export function UserManagement({ appId }: { appId: bigint }) {
     } finally {
       setLoadingUsers(false);
     }
-  }, [publicClient, contractAddress, appId]);
+  }, [publicClient, contractAddress, appId, addresses]);
 
   useEffect(() => {
     fetchUsers();
@@ -83,6 +96,7 @@ export function UserManagement({ appId }: { appId: bigint }) {
     address: contractAddress,
     abi: hardPegAbi,
     eventName: "UserListUpdated",
+    chainId: ARC_CHAIN_ID,
     onLogs: () => {
       fetchUsers();
     },
@@ -122,6 +136,7 @@ export function UserManagement({ appId }: { appId: bigint }) {
       abi: hardPegAbi,
       functionName: "updateUserList",
       args: [appId, addAddresses, []],
+      chainId: ARC_CHAIN_ID,
     });
   };
 
