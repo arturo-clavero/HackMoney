@@ -13,6 +13,8 @@ import { getContractAddress } from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
 import { useState, useEffect } from "react";
 
+const ARC_CHAIN_ID = 5042002;
+
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
@@ -23,45 +25,57 @@ interface Instance {
 }
 
 function InstancesList() {
-  const { caipAddress, address } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { address } = useAppKitAccount();
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
-  const publicClient = usePublicClient();
+  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  // One-time fetch of historical events (deterministic loading state)
+  // One-time fetch of historical events.
+  // Some RPCs (e.g. Arc testnet) limit eth_getLogs to 10k blocks, so we
+  // paginate in chunks from the deploy block to the current block.
   useEffect(() => {
-    if (!contractAddress || !address || !publicClient) return;
+    if (!contractAddress || !address || !publicClient || !addresses) return;
     let cancelled = false;
 
-    publicClient
-      .getContractEvents({
-        address: contractAddress,
-        abi: hardPegAbi,
-        eventName: "RegisteredApp",
-        args: { owner: address as Address },
-        fromBlock: BigInt(0),
-      })
-      .then((logs) => {
-        if (cancelled) return;
-        const newInstances = logs.map((log) => ({
-          id: log.args.id!,
-          coin: log.args.coin! as Address,
-        }));
-        setInstances(newInstances);
-        setLoaded(true);
-      })
-      .catch(() => {
+    (async () => {
+      try {
+        const currentBlock = await publicClient.getBlockNumber();
+        const deployBlock = addresses.deployBlock;
+        const CHUNK = BigInt(9999);
+        const allLogs: typeof instances = [];
+
+        for (let from = deployBlock; from <= currentBlock; from += CHUNK + BigInt(1)) {
+          if (cancelled) return;
+          const to = from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
+          const logs = await publicClient.getContractEvents({
+            address: contractAddress,
+            abi: hardPegAbi,
+            eventName: "RegisteredApp",
+            args: { owner: address as Address },
+            fromBlock: from,
+            toBlock: to,
+          });
+          for (const log of logs) {
+            allLogs.push({ id: log.args.id!, coin: log.args.coin! as Address });
+          }
+        }
+
+        if (!cancelled) {
+          setInstances(allLogs);
+          setLoaded(true);
+        }
+      } catch {
         if (!cancelled) setLoaded(true);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [contractAddress, address, publicClient]);
+  }, [contractAddress, address, publicClient, addresses]);
 
   // Watch for NEW events while the page is open
   useWatchContractEvent({
@@ -91,6 +105,7 @@ function InstancesList() {
       address: inst.coin,
       abi: erc20Abi,
       functionName: "name" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: instances.length > 0 },
   });
@@ -100,17 +115,10 @@ function InstancesList() {
       address: inst.coin,
       abi: erc20Abi,
       functionName: "symbol" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: instances.length > 0 },
   });
-
-  if (!contractAddress) {
-    return (
-      <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
-        Switch to a supported network to see your instances.
-      </div>
-    );
-  }
 
   if (!loaded) {
     return (

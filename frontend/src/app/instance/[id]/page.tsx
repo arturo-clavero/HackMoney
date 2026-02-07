@@ -18,9 +18,11 @@ export default function InstancePage({
 }) {
   const { id } = use(params);
   const { open } = useAppKit();
-  const { isConnected, caipAddress } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { isConnected } = useAppKitAccount();
+
+  // Always read from Arc testnet regardless of wallet chain
+  const ARC_CHAIN_ID = 5042002;
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
   let appId: bigint | undefined;
@@ -47,6 +49,7 @@ export default function InstancePage({
     abi: hardPegAbi,
     functionName: "getAppConfig",
     args: [appId!],
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress && appId !== undefined },
   });
 
@@ -55,8 +58,8 @@ export default function InstancePage({
   const coinReads = useReadContracts({
     contracts: coinAddress
       ? [
-          { address: coinAddress, abi: erc20Abi, functionName: "name" as const },
-          { address: coinAddress, abi: erc20Abi, functionName: "symbol" as const },
+          { address: coinAddress, abi: erc20Abi, functionName: "name" as const, chainId: ARC_CHAIN_ID },
+          { address: coinAddress, abi: erc20Abi, functionName: "symbol" as const, chainId: ARC_CHAIN_ID },
         ]
       : [],
     query: { enabled: !!coinAddress },

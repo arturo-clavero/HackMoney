@@ -11,14 +11,15 @@ import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { getContractAddress } from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
 
+const ARC_CHAIN_ID = 5042002;
+
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 export function CollateralManagement({ appId }: { appId: bigint }) {
-  const { caipAddress, address } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const { address } = useAppKitAccount();
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
   // Read app config to determine owner
@@ -27,6 +28,7 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
     abi: hardPegAbi,
     functionName: "getAppConfig",
     args: [appId],
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress },
   });
 
@@ -39,6 +41,7 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
     address: contractAddress,
     abi: hardPegAbi,
     functionName: "getGlobalCollateralList",
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress },
   });
 
@@ -49,6 +52,7 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
       abi: hardPegAbi,
       functionName: "isAppCollateralAllowed" as const,
       args: [appId, token] as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
@@ -59,6 +63,7 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
       address: token,
       abi: erc20Abi,
       functionName: "name" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
@@ -68,6 +73,7 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
       address: token,
       abi: erc20Abi,
       functionName: "symbol" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });

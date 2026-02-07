@@ -2,10 +2,11 @@
 
 import { useWizard } from "./WizardContext";
 import { useReadContract, useReadContracts } from "wagmi";
-import { useAppKitAccount } from "@reown/appkit/react";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { getContractAddress } from "@/contracts/addresses";
 import { type Address, formatUnits, erc20Abi } from "viem";
+
+const ARC_CHAIN_ID = 5042002;
 
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -13,10 +14,8 @@ function truncateAddress(addr: string) {
 
 export function StepCollateral() {
   const { state, setState } = useWizard();
-  const { caipAddress } = useAppKitAccount();
-  const chainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
 
-  const addresses = chainId ? getContractAddress(chainId) : null;
+  const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
 
   // Fetch registered collateral addresses from protocol
@@ -28,6 +27,7 @@ export function StepCollateral() {
     address: contractAddress,
     abi: hardPegAbi,
     functionName: "getGlobalCollateralList",
+    chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress },
   });
 
@@ -38,6 +38,7 @@ export function StepCollateral() {
       abi: hardPegAbi,
       functionName: "getGlobalCollateral" as const,
       args: [token] as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
@@ -48,6 +49,7 @@ export function StepCollateral() {
       address: token,
       abi: erc20Abi,
       functionName: "name" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
@@ -58,6 +60,7 @@ export function StepCollateral() {
       address: token,
       abi: erc20Abi,
       functionName: "symbol" as const,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
