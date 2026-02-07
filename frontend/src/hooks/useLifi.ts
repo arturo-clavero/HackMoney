@@ -203,6 +203,8 @@ export interface QuoteResult {
   toAmountUSD: string;
   gasCostUSD: string | undefined;
   executionDuration: number; // seconds
+  destinationChainId: number; // which chain the USDC lands on
+  routesChecked: number; // how many destinations were compared
 }
 
 export function useLifiQuote() {
@@ -214,13 +216,11 @@ export function useLifiQuote() {
   const fetchQuote = useCallback(
     async (params: {
       fromChain: number;
-      toChain: number;
       fromToken: string;
-      toToken: string;
       fromAmount: string;
       fromAddress: string;
+      destinations: { toChain: number; toToken: string }[];
     }) => {
-      // Abort any in-flight request
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -230,30 +230,57 @@ export function useLifiQuote() {
       setQuote(null);
 
       try {
-        const step: LiFiStep = await getQuote(
-          {
-            fromChain: params.fromChain,
-            toChain: params.toChain,
-            fromToken: params.fromToken,
-            toToken: params.toToken,
-            fromAmount: params.fromAmount,
-            fromAddress: params.fromAddress,
-          },
-          { signal: controller.signal }
+        const results = await Promise.allSettled(
+          params.destinations.map((dest) =>
+            getQuote(
+              {
+                fromChain: params.fromChain,
+                toChain: dest.toChain,
+                fromToken: params.fromToken,
+                toToken: dest.toToken,
+                fromAmount: params.fromAmount,
+                fromAddress: params.fromAddress,
+              },
+              { signal: controller.signal }
+            ).then((step) => ({ step, chainId: dest.toChain }))
+          )
         );
 
         if (controller.signal.aborted) return;
 
-        const route = convertQuoteToRoute(step);
+        const fulfilled = results.filter(
+          (r): r is PromiseFulfilledResult<{ step: LiFiStep; chainId: number }> =>
+            r.status === "fulfilled"
+        );
+
+        if (fulfilled.length === 0) {
+          const firstErr = results.find(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
+          );
+          throw firstErr?.reason ?? new Error("No routes available");
+        }
+
+        fulfilled.sort((a, b) => {
+          const aAmt = BigInt(a.value.step.estimate?.toAmount ?? "0");
+          const bAmt = BigInt(b.value.step.estimate?.toAmount ?? "0");
+          if (bAmt > aAmt) return 1;
+          if (bAmt < aAmt) return -1;
+          return 0;
+        });
+
+        const best = fulfilled[0].value;
+        const route = convertQuoteToRoute(best.step);
         setQuote({
           route,
-          toAmount: step.estimate?.toAmount ?? "0",
-          toAmountMin: step.estimate?.toAmountMin ?? "0",
-          toAmountUSD: step.estimate?.toAmountUSD ?? "0",
-          gasCostUSD: step.estimate?.gasCosts
+          toAmount: best.step.estimate?.toAmount ?? "0",
+          toAmountMin: best.step.estimate?.toAmountMin ?? "0",
+          toAmountUSD: best.step.estimate?.toAmountUSD ?? "0",
+          gasCostUSD: best.step.estimate?.gasCosts
             ?.reduce((sum, g) => sum + Number(g.amountUSD ?? 0), 0)
             .toFixed(2),
-          executionDuration: step.estimate?.executionDuration ?? 0,
+          executionDuration: best.step.estimate?.executionDuration ?? 0,
+          destinationChainId: best.chainId,
+          routesChecked: params.destinations.length,
         });
       } catch (err) {
         if (controller.signal.aborted) return;
