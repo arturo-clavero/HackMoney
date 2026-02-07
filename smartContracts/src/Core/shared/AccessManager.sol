@@ -21,16 +21,8 @@ import {Error} from "../../utils/ErrorLib.sol";
 abstract contract AccessManager {
 
     uint256 internal constant WAD = 1e18;
-    /**
-     * @dev OWNER
-     * Protocol owner with full administrative control.
-     *
-     * Expected to be a multisig or governance-controlled security module.
-     * Capabilities:
-     * - Grant and revoke all roles
-     * - Emergency intervention (via inheriting contracts)
-     */
-    uint256 constant private OWNER = 1 << 0;
+    
+
     
     /**
      * @dev COLLATERAL_MANAGER
@@ -67,6 +59,19 @@ abstract contract AccessManager {
      */
     uint256 constant public GOVERNOR = 1 << 3;
 
+    /**
+     * @dev LIQUIDATOR
+     * Can liquidate positions.
+     *
+     * Capabilities:
+     * - Mint and hold any app-sepcific stablecoin
+     * - Liquidate single positions
+     * - Batch liquidate positions in an app
+     * - Participate in liquidation pool
+     *
+     * Intended for risk mitigation and incident response.
+     */
+    uint256 constant public LIQUIDATOR = 1 << 4;
 
     /**
     * @dev The `isSetUp` flag ensures there is a **protected deployment/configuration phase**:
@@ -76,7 +81,15 @@ abstract contract AccessManager {
     */
     bool private isSetUp = false;
     
-    /// @dev protocol owner
+    /**
+     * @dev OWNER
+     * Protocol owner with full administrative control.
+     *
+     * Expected to be a multisig or governance-controlled security module.
+     * Capabilities:
+     * - Grant and revoke all roles
+     * - Emergency intervention (via inheriting contracts)
+     */
     address private owner;
 
     /// @dev External timelock contract used for delayed execution
@@ -92,7 +105,6 @@ abstract contract AccessManager {
     constructor(address _owner, address _timelock) {
         owner = _owner;
         timelock = _timelock;
-        roles[_owner] |= OWNER;
     }
 
     /**

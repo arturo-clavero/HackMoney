@@ -175,8 +175,8 @@ abstract contract AppManager is CollateralManager {
     /**
      * @dev Mints app-specific stablecoin.
      */
-    function _mintAppToken(uint256 appID, address to, uint256 value) internal{
-        IPrivateCoin(appConfig[appID].coin).mint(msg.sender, to, value);
+    function _mintAppToken(uint256 appID, address to, uint256 value) internal virtual {
+        IPrivateCoin(appConfig[appID].coin).mint(msg.sender, to, value, false);
     }
 
     /**
@@ -212,7 +212,7 @@ abstract contract AppManager is CollateralManager {
     /**
      * @notice Returns app's private coin interface, for testing
      */
-    function getAppCoin(uint256 id) external view returns (address){
+    function getAppCoin(uint256 id) public view returns (address){
         require (id < latestId);
         return appConfig[id].coin;
     }

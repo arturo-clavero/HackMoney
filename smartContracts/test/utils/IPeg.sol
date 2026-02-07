@@ -16,6 +16,7 @@ interface IPeg {
     function withdrawCollateral(uint256 id, address token, uint256 valueAmount) external;
     function repay(uint256 id, uint256 rawAmount) external;
     function liquidate(uint256 id, address user, uint256 rawAmountIn) external;
+    function liquidateShares(uint256 id, address user, uint256 debtSharesToBurn) external;
     function getPrice(address token) external view returns (uint256 price);
 
     // accounting -hard
@@ -42,9 +43,10 @@ interface IPeg {
     function addAppCollateral(uint256 appID, address token) external;
     function newInstance(AppInput calldata config) external returns (uint256 id);
     function getAppCoin(uint256 id) external view returns (address);
+    function grantRole(address user, uint256 role) external;
+    function hasRole(address user, uint256 role) external view returns (bool);
 
     //helpers - soft
     function getMaxLTV(uint256 id, address user) external returns (uint256) ;
-
 
 }

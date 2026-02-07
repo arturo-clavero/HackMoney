@@ -8,7 +8,7 @@ interface IPrivateCoin is IERC20, IERC20Permit {
 
     event NeedToSetMorePermissions(address[] toAdd, address[] toRevoke);
 
-    function mint(address from, address to, uint256 value) external;
+    function mint(address from, address to, uint256 value, bool isLiquidator) external;
 
     function burn(address account, uint256 value) external;
 

@@ -30,10 +30,6 @@ contract AccessTest is Test {
         access = new AccessHarness(owner, timelock);
     }
 
-    function testOwnerHasOwnerRole() public  view {
-        assertTrue(access.hasRole(owner, OWNER));
-    }
-
     function testGrantRole() public {
         vm.prank(owner);
         access.grantRole(user, COLLATERAL_MANAGER);

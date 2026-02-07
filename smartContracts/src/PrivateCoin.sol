@@ -87,9 +87,11 @@ contract PrivateCoin is ERC20, ERC20Permit{
      * - `from` must have mint permission
      * - `to` must be permitted to hold tokens
      */
-    function mint(address from, address to, uint256 value) onlyEngine() external {
-        _needsPermission(from, Actions.MINT);
-        _needsPermission(to, Actions.HOLD);
+    function mint(address from, address to, uint256 value, bool isLiquidator) onlyEngine() external {
+        if (!(isLiquidator && from == to)) {
+            _needsPermission(from, Actions.MINT);
+            _needsPermission(to, Actions.HOLD);
+        }
         _mint(to, value);
     }
 
@@ -107,8 +109,10 @@ contract PrivateCoin is ERC20, ERC20Permit{
      * @dev
      * Transfer destination must explicitly allow receiving transfers.
      * Holding and transfer permissions are intentionally decoupled.
+     * Source restrictions are enforced to disable LIQUIDATORS from tranferring
      */    
     function transfer(address to, uint256 value) public override returns (bool) {
+        _needsPermission(msg.sender, Actions.HOLD);
         _needsPermission(to, Actions.TRANSFER_DEST);
         return super.transfer(to, value);
     }
@@ -119,11 +123,13 @@ contract PrivateCoin is ERC20, ERC20Permit{
      * @dev
      * - Permit signatures are supported, (allowances are intentionally unrestricted)
      * - Destination restrictions are still enforced
+     * - Source restrictions are enforced to disable LIQUIDATORS from tranferring
      *
      * This enables account abstraction, bundling, and gas-efficient flows
      * without expanding the token's circulation surface.
      */
     function transferFrom(address from, address to, uint256 value) public override returns (bool) {
+        _needsPermission(from, Actions.HOLD);
         _needsPermission(to, Actions.TRANSFER_DEST);
         return super.transferFrom(from, to, value);
     }

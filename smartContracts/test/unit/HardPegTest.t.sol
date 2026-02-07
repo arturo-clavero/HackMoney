@@ -224,5 +224,45 @@ contract HardPegUnitTest is BaseEconomicTest {
         assertEq(peg.getGlobalPool(address(usdc)), 70);
     }
 
+    //edge-cases
+
+    function _canNotMintTranferOrHold(address banned) internal{
+        vm.startPrank(banned);
+        peg.deposit(ID, address(usdc), _raw(100, address(usdc)));
+        vm.expectRevert();
+        peg.mint(ID, alice, type(uint256).max);
+        vm.expectRevert();
+        peg.mint(ID, banned, type(uint256).max);
+        vm.stopPrank();
+         vm.startPrank(minter);
+        peg.deposit(ID, address(usdc), _raw(100, address(usdc)));
+        vm.expectRevert();
+        peg.mint(ID, banned, type(uint256).max);
+        peg.mint(ID, alice, type(uint256).max);
+        vm.stopPrank();
+        vm.startPrank(alice);
+        address coin = peg.getAppCoin(ID);
+        vm.expectRevert();
+        IERC20(coin).transfer(banned, 2);
+        IERC20(coin).transfer(bob, 2);
+    }
+
+    function testLiquidatorCanNotMint() public {
+        address liquidator = address(0xDEAD);
+        _mintTokenTo(usdc, 500, liquidator);
+        _mintTokenTo(usdc, 500, minter);
+
+        //check liquidator is not a user
+        _canNotMintTranferOrHold(liquidator);
+
+        //give liquidator role
+        vm.startPrank(owner);
+        peg.grantRole(liquidator, 1 << 4);
+        assert(peg.hasRole(liquidator, 1 << 4));
+
+        //check with role liquidator still can not mint or hold or receive transfer
+        _canNotMintTranferOrHold(liquidator);
+    }
+
 }
 

@@ -109,6 +109,9 @@ abstract contract BaseEconomicTest is Test {
         return(amount * scale);
     }
 
+    //if your token has 18 decimals to mint one unit -> 1e18
+    //_raw(1, tokenAddress) -> 1e18;
+
     function _val(uint256 amount, address token) internal view returns (uint256){
         uint8 d;
 
@@ -266,10 +269,10 @@ abstract contract BaseEconomicTest is Test {
 
         uint256 liqThreshold = peg.getGlobalCollateral(token).liquidityThreshold;
 
-        uint256 price = Math.mulDiv(
+        uint256 price = RiskMath.safeMulDiv(
             debt,
             1e8,
-            Math.mulDiv(collateralAmount, liqThreshold, 1e18)
+            RiskMath.safeMulDiv(collateralAmount, liqThreshold, 1e18)
         );
 
         _setMockPrice(price - 1, token);
@@ -293,7 +296,7 @@ abstract contract BaseEconomicTest is Test {
 
             uint256 price = _getPrice(token); // 1e8
 
-            requiredDebt += Math.mulDiv(
+            requiredDebt += RiskMath.safeMulDiv(
                 valueAmount * price,
                 peg.getGlobalCollateral(token).liquidityThreshold,
                 1e18 * 1e8

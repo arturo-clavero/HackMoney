@@ -103,11 +103,11 @@ contract PrivateCoinTest is Test {
                 bool receiverCanHold = (userActions & Actions.HOLD != 0);
 
                 if (senderCanMint && receiverCanHold) {
-                    c.mint(user1, user1, 1);
+                    c.mint(user1, user1, 1, false);
                     assertEq(c.balanceOf(user1), 1);
                 } else {
                     vm.expectRevert();
-                    c.mint(user1, user1, 1);
+                    c.mint(user1, user1, 1, false);
                 }
 
                 vm.stopPrank();
@@ -135,7 +135,7 @@ contract PrivateCoinTest is Test {
         address minter = (appActions & Actions.MINT != 0) ? app : user1;
 
         vm.prank(engine);
-        c.mint(minter, user1, 2);
+        c.mint(minter, user1, 2, false);
 
         return (c, minter);
     }
@@ -217,7 +217,7 @@ contract PrivateCoinTest is Test {
                 grantUser(c, user1);
 
                 vm.prank(engine);
-                c.mint(minter, holder, 2);
+                c.mint(minter, holder, 2, false);
 
                 vm.startPrank(engine);
                 c.burn(holder, 1);
@@ -247,7 +247,7 @@ contract PrivateCoinTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(Error.InvalidAccess.selector);
-        c.mint(user1, user1, 1);
+        c.mint(user1, user1, 1, false);
     }
 
     function testUpdateUserList_RevertsIfNotEngine() public {
@@ -341,7 +341,7 @@ contract PrivateCoinTest is Test {
         grantUser(c, user2);
 
         vm.prank(engine);
-        c.mint(app, user1, 2);
+        c.mint(app, user1, 2, false);
 
         vm.prank(user1);
         c.approve(spender, 1);
@@ -363,7 +363,7 @@ contract PrivateCoinTest is Test {
         grantUser(c, user2);
 
         vm.prank(engine);
-        c.mint(app, user1, 1);
+        c.mint(app, user1, 1, false);
 
         vm.prank(spender);
         vm.expectRevert(Error.InvalidPermission.selector);
@@ -383,7 +383,7 @@ contract PrivateCoinTest is Test {
 
         vm.prank(engine);
         vm.expectRevert(Error.InvalidPermission.selector);
-        c.mint(user1, user1, 1);
+        c.mint(user1, user1, 1, false);
     }
 
 }

@@ -24,9 +24,7 @@ library RiskMath {
         uint256 totalShares,
         uint256 totalAssets
     ) internal pure returns (uint256 _assets) {
-        if (totalAssets == 0 || totalShares == 0)
-            return 0;
-        _assets = Math.mulDiv(_shares, totalAssets, totalShares);
+        _assets = safeMulDiv(_shares, totalAssets, totalShares);
         // _assets = (_shares * totalAssets) / totalShares;
     }
 
@@ -35,9 +33,19 @@ library RiskMath {
         uint256 totalAssets,
         uint256 totalShares
     ) internal pure returns (uint256 _shares) {
-        if (totalAssets == 0 || totalShares == 0)
-            return _assets;
-        _shares = Math.mulDiv(_assets, totalShares, totalAssets);
+        _shares = safeMulDiv(_assets, totalShares, totalAssets);
         // _shares = (_assets * totalShares) / totalAssets;
+    }
+
+    function safeMulDiv(uint256 n1, uint256 n2, uint256 divisor) internal pure returns (uint256) {
+        if (divisor == 0)
+            return 0;
+        return Math.mulDiv(n1, n2, divisor);
+    }
+
+    function safeFirstMulDiv(uint256 n1, uint256 n2, uint256 divisor) internal pure returns (uint256) {
+        if (divisor == 0 || n2 == 0)
+            return n1;
+        return Math.mulDiv(n1, n2, divisor);
     }
 }

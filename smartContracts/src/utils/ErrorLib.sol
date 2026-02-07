@@ -15,4 +15,5 @@ library Error {
     error InsufficientCollateral();
     error UserHasDebt();
     error PositionIsHealthy();
+    error LiquidationDust();
 }   

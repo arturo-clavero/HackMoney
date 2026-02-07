@@ -32,12 +32,14 @@ library Core {
         input = AppInput({
             name: "TestCoin",
             symbol: "TC",
-            appActions: Core.defaultAppAction,
-            userActions: Core.defaultUserAction,
+            appActions: Core.defaultAppAction, //allowing apps to mint to users
+            userActions: Core.defaultUserAction, //allwoing users to hold and transfer
             users: new address[](0),
             tokens: new address[](0)
         });
     }
+//app can deposit 500 to user
+//app can mint 500 * LTV to user
 
     function _newAppInstanceInput(address[] memory users, address[] memory tokens) internal pure returns (AppInput memory input) {
         input = AppInput({
@@ -55,6 +57,7 @@ library Core {
         return address(token);
     }
 
+//adding global collateral
     function _collateralInput(address token, uint256 mode)
         internal
         returns (CollateralInput memory)
@@ -68,7 +71,7 @@ library Core {
             tokenAddress: token,
             mode: mode,
             oracleFeeds: feeds,
-            LTV: 50,
+            LTV: 50, // 50 % -> deposit 300 I can mint 150
             liquidityThreshold: 80,
             debtCap: 1000
         });
@@ -85,6 +88,7 @@ library Core {
         return CollateralInput({
             tokenAddress: _newToken(),
             mode: COL_MODE_STABLE,
+            // mode: COL_MODE_YIELD,
             oracleFeeds: feeds,
             LTV: 50,
             liquidityThreshold: 80,

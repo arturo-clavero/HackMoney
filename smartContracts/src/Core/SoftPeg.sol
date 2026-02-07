@@ -12,6 +12,7 @@ import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
 import {RiskMath} from "../utils/RiskMathLib.sol";
 import {Math} from "@openzeppelin/utils/math/Math.sol";
 import {Error} from "../utils/ErrorLib.sol";
+import {IPrivateCoin} from "./../interfaces/IPrivateCoin.sol";
 
 struct Position {
     mapping(address token => uint256 shares) colShares;
@@ -99,14 +100,14 @@ contract SoftPeg is AppManager, Security, Oracle {
             if (share == 0) continue;
             ColVault storage vault = collateralVaults[token];
             uint256 valueAmount = share.calcAssets(vault.totalShares, vault.totalAssets);
-            mintCredit += Math.mulDiv(valueAmount * getPrice(token), globalCollateralConfig[token].LTV,
+            mintCredit += RiskMath.safeMulDiv(valueAmount * getPrice(token), globalCollateralConfig[token].LTV,
                 WAD * 1e8
             );
         }
         mintCredit -= pos.debtShares.calcAssets(totalDebtShares, totalDebt);
     }
-
-    function mint(uint256 id, address to, uint256 rawAmount) public {
+  
+    function mint(uint256 id, address to, uint256 rawAmount) external {
         if (rawAmount == 0)
             revert Error.InvalidAmount();
         //READ POSITION FROM MINTER
@@ -135,10 +136,18 @@ contract SoftPeg is AppManager, Security, Oracle {
         _mintAppToken(id, to, rawAmount);
     }
 
+    function _mintAppToken(uint256 appID, address to, uint256 value) internal override {
+        IPrivateCoin(getAppCoin(appID)).mint(msg.sender, to, value, roles[msg.sender] & LIQUIDATOR != 0);
+    }
+    
     function withdrawCollateral(uint256 id, address token, uint256 valueAmount) external {
-        Position storage pos = userPositions[id][msg.sender];
+        _withdrawCollateral(id, msg.sender, token, valueAmount, msg.sender,false);
+    }
 
-        if (pos.debtShares != 0)
+    function _withdrawCollateral(uint256 id, address user, address token, uint256 valueAmount, address receiver, bool isLiquidation) internal {
+        Position storage pos = userPositions[id][user];
+
+        if (!isLiquidation && pos.debtShares != 0)
             revert Error.UserHasDebt();
 
         //calc share & update:
@@ -156,7 +165,7 @@ contract SoftPeg is AppManager, Security, Oracle {
         }
 
         uint256 rawAmount = valueAmount * globalCollateralConfig[token].scale;
-        IERC20(token).safeTransfer(msg.sender, rawAmount);
+        IERC20(token).safeTransfer(receiver, rawAmount);
     }
 
     function repay(uint256 id, uint256 rawAmount) external {
@@ -171,121 +180,104 @@ contract SoftPeg is AppManager, Security, Oracle {
         totalDebt -= valueAmount;
 
         _burnAppToken(id, rawAmount);
+
+        //send propprtonal collateral? 
     }
 
-    function liquidate(uint256 id, address user, uint256 rawAmountIn) external {
-        //1. checks : 
-        if (rawAmountIn == 0)
-            revert Error.InvalidAmount();
-        Position storage pos = userPositions[id][user];
-        //2. CALCULATE with oracle: health, basket prices (per col & total)
-        uint256 len = pos.colUsed.length;
-        uint256[] memory colBasket = new uint256[](len);
-        uint256 maxDebt;
-        uint256 totalColBasket; 
-        for (uint256 i = 0; i < len; i++){
-            address colToken = pos.colUsed[i];
-            uint256 share = pos.colShares[colToken];
-            if (share == 0) continue;
-            ColVault storage vault = collateralVaults[colToken];
-            uint256 _valueAmount = share.calcAssets(vault.totalShares, vault.totalAssets);
-            uint256 valuePrice = _valueAmount * getPrice(colToken);
-            maxDebt += Math.mulDiv(valuePrice, globalCollateralConfig[colToken].liquidityThreshold,
-                WAD * 1e8
-            );
-            //take advantage of loop + oracle to set basket for transfers...
-            valuePrice /= 1e8;
-            colBasket[i] = valuePrice;
-            totalColBasket += valuePrice;
-        }
+   // function liquidate(uint256 id, address user, uint256 rawAmountIn) external {
+    //     if (rawAmountIn == 0) revert Error.InvalidAmount();
 
-        //check health
-        uint256 actualDebt = pos.debtShares.calcAssets(totalDebtShares, totalDebt);
-        if (actualDebt < maxDebt)
-            revert Error.PositionIsHealthy();
-        
-        //cap liquidation amount
-        uint256 maxLiquidation = actualDebt - maxDebt;
-        uint256 valueAmount = rawAmountIn / DEFAULT_COIN_SCALE;
-        if (valueAmount > maxLiquidation){
-            valueAmount = maxLiquidation;
-        }
+    //     (
+    //         uint256 maxLiquidationValue,
+    //         uint256 actualDebt
+    //     ) = _computeLiquidationValues(id, user);
 
-        // //IN stablecoin
-        uint256 newDebtShare = valueAmount.calcNewShare(totalDebt, totalDebtShares);
-        userPositions[id][user].debtShares -= newDebtShare;
-        totalDebtShares -= newDebtShare;
-        totalDebt -= valueAmount;
-        _burnAppToken(id, rawAmountIn);
+    //     uint256 valueAmount = rawAmountIn / DEFAULT_COIN_SCALE;
+    //     if (valueAmount > maxLiquidationValue)
+    //         valueAmount = maxLiquidationValue;
 
-        //OUT collateral
-        for (uint256 i = 0; i < len; i++) {
-            address colToken = pos.colUsed[i];
-            uint256 share = pos.colShares[colToken];
-            if (share == 0) continue;
+    //     uint256 sharesToBurn =
+    //         valueAmount.calcNewShare(totalDebt, totalDebtShares);
 
-            //calc share out
-            uint256 colOut_value = Math.mulDiv(valueAmount, colBasket[i], totalColBasket);
-            ColVault storage vault = collateralVaults[colToken];
-            uint256 shareOut = colOut_value.calcShares(vault.totalAssets, vault.totalShares);
+    //     if (sharesToBurn == 0)
+    //         revert Error.LiquidationDust();
 
-            //reduce col->
-            // reduce total assets 
-            // reduce total shares
-            // reduce user shares 
-            vault.totalAssets -= colOut_value;
-            vault.totalShares -= shareOut;
-            pos.colShares[colToken] -= shareOut;
+    //     _liquidateShares(id, user, sharesToBurn, msg.sender);
+    // }
 
-            uint256 rawAmountOut = colOut_value * globalCollateralConfig[colToken].scale;
-            IERC20(colToken).safeTransfer(msg.sender, rawAmountOut);
-        }
-    }
+    // function liquidateShares(uint256 id, address user,uint256 debtSharesToBurn) external {
+    //     _revertIfHealthy(id, user);
 
-    function liquidateFromPool() external {
+    //     _liquidateShares(
+    //         id,
+    //         user,
+    //         debtSharesToBurn,
+    //         msg.sender
+    //     );
+    // }
 
-    }
-
-    function enterLiquidationPool() external {
-
-    }
-
-    function exitLiquidationPool() external {
-
-    }
-
-    function redeam() external {
-
-    }
-
-
-    // function redeam(address token, uint256 rawAmount) external {
-    //     uint256 id = _getStablecoinID(token);
-    //     if (rawAmount == 0)
+    // function _liquidateShares(uint256 id, address user, uint256 debtSharesToBurn, address receiver) internal {
+    //     Position storage pos = userPositions[id][user];
+    //     if (debtSharesToBurn == 0 || debtSharesToBurn > pos.debtShares)
     //         revert Error.InvalidAmount();
-    //     uint256 valueAmount = rawAmount / DEFAULT_COIN_SCALE;
-    //     totalSupply -= valueAmount;
-    //     _burnAppToken(id, rawAmount);
-    //     _sendCollateralBasket(valueAmount);
+
+    //     uint256 valueAmount = debtSharesToBurn.calcAssets(totalDebt, totalDebtShares);
+
+    //     // burn stable from caller
+    //     _burnAppToken(id, valueAmount * DEFAULT_COIN_SCALE);
+
+    //     // accounting
+    //     pos.debtShares -= debtSharesToBurn;
+    //     totalDebtShares -= debtSharesToBurn;
+    //     totalDebt -= valueAmount;
+
+    //     // collateral out
+    //     _distributeCollateralProRata(
+    //         id,
+    //         user,
+    //         valueAmount,
+    //         receiver
+    //     );
     // }
 
-   
+    // function _distributeCollateralProRata(
+    //     uint256 id,
+    //     address user,
+    //     uint256 valueAmount,
+    //     address receiver
+    // ) internal {
+    //     Position storage pos = userPositions[id][user];
 
-    // function getTotalPool() external view returns (uint256){
-    //     return totalPool;
+    //     uint256 len = pos.colUsed.length;
+    //     uint256 totalValue;
+
+    //     uint256[] memory values = new uint256[](len);
+
+    //     for (uint256 i; i < len; i++) {
+    //         address col = pos.colUsed[i];
+    //         uint256 share = pos.colShares[col];
+    //         if (share == 0) continue;
+
+    //         ColVault storage v = collateralVaults[col];
+    //         uint256 assets = share.calcAssets(v.totalShares, v.totalAssets);
+    //         uint256 price = getPrice(col);
+
+    //         uint256 value = (assets * price) / 1e8;
+    //         values[i] = value;
+    //         totalValue += value;
+    //     }
+
+    //     for (uint256 i; i < len; i++) {
+    //         if (values[i] == 0) continue;
+
+    //         uint256 outValue =
+    //             RiskMath.safeFirstMulDiv(valueAmount, values[i], totalValue);
+
+    //         _withdrawCollateral(id, user, pos.colUsed[i], outValue, receiver);
+    //     }
     // }
 
-    // function getGlobalPool(address token) external view returns (uint256){
-    //     return globalPool[token];
-    // }
-
-    // function getTotalSupply() external view returns (uint256){
-    //     return totalSupply;
-    // }
-
-    // function getVaultBalance(uint256 id, address user) external view returns (uint256) {
-    //     return (vault[id][user]);
-    // }
+    
     function getUserColShares(uint256 id, address user, address token) external returns (uint256) {
         return (userPositions[id][user].colShares[token]);
     }
@@ -314,5 +306,77 @@ contract SoftPeg is AppManager, Security, Oracle {
         return totalDebt;
     }
 
+    function liquidate(uint256 id, address user, uint256 rawAmountIn) external {
+        //1. checks : 
+        if (rawAmountIn == 0)
+            revert Error.InvalidAmount();
+        Position storage pos = userPositions[id][user];
+        //2. CALCULATE with oracle: health, basket prices (per col & total)
+        uint256 len = pos.colUsed.length;
+        uint256[] memory colBasket = new uint256[](len);
+        uint256 maxDebt;
+        uint256 totalColBasket; 
+        for (uint256 i = 0; i < len; i++){
+            address colToken = pos.colUsed[i];
+            uint256 share = pos.colShares[colToken];
+            if (share == 0) continue;
+            ColVault storage vault = collateralVaults[colToken];
+            uint256 _valueAmount = share.calcAssets(vault.totalShares, vault.totalAssets);
+            uint256 valuePrice = _valueAmount * getPrice(colToken);
+            maxDebt += RiskMath.safeMulDiv(valuePrice, globalCollateralConfig[colToken].liquidityThreshold,
+                WAD * 1e8
+            );
+            //take advantage of loop + oracle to set basket for transfers...
+            valuePrice /= 1e8;
+            colBasket[i] = valuePrice;
+            totalColBasket += valuePrice;
+        }
 
-}
+        //check health
+        uint256 actualDebt = pos.debtShares.calcAssets(totalDebtShares, totalDebt);
+        if (actualDebt < maxDebt)
+            revert Error.PositionIsHealthy();
+        
+        //cap liquidation amount
+        uint256 maxLiquidation = actualDebt - maxDebt;
+        uint256 valueAmount = rawAmountIn / DEFAULT_COIN_SCALE;
+        if (valueAmount > maxLiquidation){
+            valueAmount = maxLiquidation;
+        }
+
+        // //IN stablecoin
+        uint256 newDebtShare = valueAmount.calcNewShare(totalDebt, totalDebtShares);
+        if (newDebtShare == 0)
+            revert Error.LiquidationDust();
+        userPositions[id][user].debtShares -= newDebtShare;
+        totalDebtShares -= newDebtShare;
+        totalDebt -= valueAmount;
+        _burnAppToken(id, valueAmount * DEFAULT_COIN_SCALE);
+
+        //OUT collateral
+        for (uint256 i = 0; i < len; i++) {
+            address colToken = pos.colUsed[i];
+            uint256 share = pos.colShares[colToken];
+            if (share == 0) continue;
+
+            //calc share out
+            uint256 colOut_value = RiskMath.safeFirstMulDiv(valueAmount, colBasket[i], totalColBasket);
+            ColVault storage vault = collateralVaults[colToken];
+            uint256 shareOut = colOut_value.calcShares(vault.totalAssets, vault.totalShares);
+            if (shareOut == 0) continue;
+
+            //reduce col->
+            // reduce total assets 
+            // reduce total shares
+            // reduce user shares 
+            vault.totalAssets -= colOut_value;
+            vault.totalShares -= shareOut;
+            pos.colShares[colToken] -= shareOut;
+
+            uint256 rawAmountOut = colOut_value * globalCollateralConfig[colToken].scale;
+            IERC20(colToken).safeTransfer(msg.sender, rawAmountOut);
+        }
+    }
+    }
+
+ 
