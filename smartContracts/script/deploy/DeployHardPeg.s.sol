@@ -40,22 +40,43 @@ contract DeployHardPeg is Script {
         // Example: adapter address: hardPegAdapter.address
 
         // Register collateral
-        address fakeToken = address(core._newToken());
         uint256 stableMode = core.COL_MODE_STABLE;
-        address[] memory fakeFeeds = new address[](3);
-        fakeFeeds[0] = address(0x57020Ba11D61b188a1Fd390b108D233D87c06057); //pyusd
-        fakeFeeds[1] = address(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E); //usdc
-        fakeFeeds[2] = address(0x14866185B1962B63C3Ea9E03Bc1da838bab34C19); //dai
 
+        address pyusd = 0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9;
+        address[] memory feeds1 = new address[](1);
+        fakeFeeds[0] = address(0x57020Ba11D61b188a1Fd390b108D233D87c06057); //pyusd
         hardPeg.updateGlobalCollateral(CollateralInput({
-            tokenAddress: fakeToken,
+            tokenAddress: pyusd,
             mode: stableMode,
-            oracleFeeds: fakeFeeds,
-            LTV: 0,
-            liquidityThreshold: 0,
+            oracleFeeds: feeds1,
+            LTV: 98,
+            liquidityThreshold: 100,
             debtCap: 200_000 ether
         }));
 
+        address usdc = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+        address[] memory feeds2 = new address[](1);
+        fakeFeeds[0] = address(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E); //usdc
+         hardPeg.updateGlobalCollateral(CollateralInput({
+            tokenAddress: usdc,
+            mode: stableMode,
+            oracleFeeds: feeds2,
+            LTV: 98,
+            liquidityThreshold: 100,
+            debtCap: 200_000 ether
+        }));
+
+        address dai = 0x776b6fc2ed15d6bb5fc32e0c89de68683118c62a;
+        address[] memory feeds3 = new address[](1);
+        fakeFeeds[0] = address(0x14866185B1962B63C3Ea9E03Bc1da838bab34C19); //dai
+         hardPeg.updateGlobalCollateral(CollateralInput({
+            tokenAddress: dai,
+            mode: stableMode,
+            oracleFeeds: feeds3,
+            LTV: 98,
+            liquidityThreshold: 100,
+            debtCap: 200_000 ether
+        }));
         //Update timelock to point to protocol (if needed)
         // timelock.setProtocol(address(hardPeg));
 

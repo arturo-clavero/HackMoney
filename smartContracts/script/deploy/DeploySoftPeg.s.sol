@@ -46,7 +46,7 @@ contract DeploySoftPeg is Script {
         uint256 yieldMode = core.COL_MODE_YIELD;
 
         //collateral stable
-        address pyusd = address(core._newToken());
+        address pyusd = 0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9;
         address[] memory feeds1 = new address[](1);
         feeds1[0] = address(0x57020Ba11D61b188a1Fd390b108D233D87c06057);//Pyusd/usd
 
@@ -61,7 +61,7 @@ contract DeploySoftPeg is Script {
 
 
         // Register volotile
-        address linkToken = address(core._newToken());
+        address linkToken = 0x779877a7b0d9e8603169ddbd7836e478b4624789;
         address[] memory feeds2 = new address[](1);
         feeds2[0] = address(0xc59E3633BAAC79493d908e63626716e204A45EdF);//link/usd
 
@@ -77,7 +77,7 @@ contract DeploySoftPeg is Script {
 // Register collateral3 stable
         address daiToken = address(core._newToken());
         address[] memory feeds3 = new address[](1);
-        feeds3[0] = address(0x14866185B1962B63C3Ea9E03Bc1da838bab34C19); //dai/usd
+        feeds3[0] = 0x776b6fc2ed15d6bb5fc32e0c89de68683118c62a; //dai/usd
 
         softPeg.updateGlobalCollateral(CollateralInput({
             tokenAddress: daiToken, //dai
