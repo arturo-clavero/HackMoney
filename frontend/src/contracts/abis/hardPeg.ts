@@ -95,11 +95,10 @@ export const hardPegAbi = [
   },
   {
     type: "function",
-    name: "updateUserList",
+    name: "addUsers",
     inputs: [
       { name: "id", type: "uint256" },
       { name: "toAdd", type: "address[]" },
-      { name: "toRevoke", type: "address[]" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
@@ -181,7 +180,6 @@ export const hardPegAbi = [
     inputs: [
       { name: "id", type: "uint256", indexed: true },
       { name: "added", type: "address[]", indexed: false },
-      { name: "removed", type: "address[]", indexed: false },
     ],
   },
 ] as const;

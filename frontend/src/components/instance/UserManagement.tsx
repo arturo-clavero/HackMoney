@@ -7,11 +7,12 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useWatchContractEvent,
+  useEnsAddress,
 } from "wagmi";
-import { useQueryClient } from "@tanstack/react-query";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { getContractAddress } from "@/contracts/addresses";
-import { isAddress, type Address, type Log } from "viem";
+import { isAddress, type Address } from "viem";
+import { normalize } from "viem/ens";
 import { usePublicClient } from "wagmi";
 
 function truncateAddress(addr: string) {
@@ -25,11 +26,31 @@ export function UserManagement({ appId }: { appId: bigint }) {
   const addresses = getContractAddress(ARC_CHAIN_ID);
   const contractAddress = addresses?.hardPeg;
   const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
-  const queryClient = useQueryClient();
-
   const [addInput, setAddInput] = useState("");
   const [users, setUsers] = useState<Address[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // ENS resolution: treat input as ENS if it contains a dot and isn't a raw address
+  const trimmedInput = addInput.trim();
+  const isEns = trimmedInput.includes(".") && !isAddress(trimmedInput);
+  const isRawAddress = isAddress(trimmedInput);
+
+  let ensName: string | undefined;
+  try {
+    ensName = isEns ? normalize(trimmedInput) : undefined;
+  } catch {
+    ensName = undefined;
+  }
+
+  const { data: ensResolvedAddress, isLoading: ensLoading } = useEnsAddress({
+    name: ensName,
+    chainId: 1,
+    query: { enabled: !!ensName },
+  });
+
+  const resolvedAddress: Address | undefined = isRawAddress
+    ? (trimmedInput as Address)
+    : ensResolvedAddress ?? undefined;
 
   const { data: appConfig } = useReadContract({
     address: contractAddress,
@@ -71,12 +92,8 @@ export function UserManagement({ appId }: { appId: bigint }) {
       const userSet = new Set<string>();
       for (const log of logs) {
         const added = (log as any).args.added as Address[] | undefined;
-        const removed = (log as any).args.removed as Address[] | undefined;
         if (added) {
           for (const a of added) userSet.add(a.toLowerCase());
-        }
-        if (removed) {
-          for (const r of removed) userSet.delete(r.toLowerCase());
         }
       }
       setUsers(Array.from(userSet) as Address[]);
@@ -108,34 +125,25 @@ export function UserManagement({ appId }: { appId: bigint }) {
     hash: txHash,
   });
 
-  const parseAddresses = useCallback((input: string): Address[] => {
-    return input
-      .split(/[\n,]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && isAddress(s)) as Address[];
-  }, []);
+  const inputInvalid =
+    trimmedInput.length > 0 && !isRawAddress && !isEns;
+  const ensNotFound = isEns && !ensLoading && !ensResolvedAddress && !!ensName;
 
-  const addAddresses = parseAddresses(addInput);
-
-  const invalidAdd = addInput
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !isAddress(s));
-
-  // Clear input after success (event watcher handles list refresh)
+  // Clear input and refresh user list after successful transaction
   useEffect(() => {
     if (isSuccess) {
       setAddInput("");
+      fetchUsers();
     }
-  }, [isSuccess]);
+  }, [isSuccess, fetchUsers]);
 
   const handleSubmit = () => {
-    if (!contractAddress || addAddresses.length === 0) return;
+    if (!contractAddress || !resolvedAddress) return;
     writeContract({
       address: contractAddress,
       abi: hardPegAbi,
-      functionName: "updateUserList",
-      args: [appId, addAddresses, []],
+      functionName: "addUsers",
+      args: [appId, [resolvedAddress]],
       chainId: ARC_CHAIN_ID,
     });
   };
@@ -162,8 +170,8 @@ export function UserManagement({ appId }: { appId: bigint }) {
       </div>
       <div className="flex flex-col gap-5 p-5">
         <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-          Add wallet addresses to grant them permission to hold and interact
-          with your stablecoin.
+          Add a wallet address or ENS name to grant permission to hold and
+          interact with your stablecoin.
         </div>
 
         {/* Whitelisted users list */}
@@ -193,24 +201,36 @@ export function UserManagement({ appId }: { appId: bigint }) {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-black dark:text-white">
-            Add Users
+            Add User
           </label>
-          <textarea
+          <input
+            type="text"
             value={addInput}
-            onChange={(e) => setAddInput(e.target.value)}
-            placeholder="0x1234..., 0xabcd...&#10;One per line or comma-separated"
-            rows={3}
+            onChange={(e) => {
+              setAddInput(e.target.value);
+              reset();
+            }}
+            placeholder="0x1234... or vitalik.eth"
             className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
           />
-          {invalidAdd.length > 0 && (
+          {inputInvalid && (
             <p className="mt-1 text-xs text-red-500">
-              Invalid: {invalidAdd.join(", ")}
+              Invalid address or ENS name
             </p>
           )}
-          {addAddresses.length > 0 && (
+          {ensLoading && (
             <p className="mt-1 text-xs text-zinc-400">
-              {addAddresses.length} valid address
-              {addAddresses.length > 1 ? "es" : ""}
+              Resolving ENS name...
+            </p>
+          )}
+          {ensNotFound && (
+            <p className="mt-1 text-xs text-red-500">
+              ENS name not found
+            </p>
+          )}
+          {isEns && ensResolvedAddress && (
+            <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+              Resolved: {ensResolvedAddress}
             </p>
           )}
         </div>
@@ -225,20 +245,20 @@ export function UserManagement({ appId }: { appId: bigint }) {
 
         {isSuccess && (
           <p className="text-xs text-green-600 dark:text-green-400">
-            Users updated successfully.
+            User added successfully.
           </p>
         )}
 
         <button
           onClick={handleSubmit}
-          disabled={addAddresses.length === 0 || isPending || isConfirming}
+          disabled={!resolvedAddress || isPending || isConfirming || ensLoading}
           className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isPending
             ? "Confirm in wallet..."
             : isConfirming
               ? "Adding..."
-              : "Add Users"}
+              : "Add User"}
         </button>
       </div>
     </div>
