@@ -28,6 +28,13 @@ import {
 import { useLifiTokens, useLifiQuote, useLifiExecution } from "@/hooks/useLifi";
 import { useBridgeToArc } from "@/hooks/useBridgeToArc";
 import { TokenSelectorModal } from "./TokenSelectorModal";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
+import { motion } from "@/components/motion";
 
 // ─── Route Detection ─────────────────────────────────────────────────────────
 
@@ -58,14 +65,14 @@ function getRouteSteps(route: DepositRoute): string[] {
   }
 }
 
-function getRouteBadge(route: DepositRoute): { label: string; color: string } {
+function getRouteBadge(route: DepositRoute): { label: string; variant: "default" | "secondary" | "outline" } {
   switch (route) {
     case "direct":
-      return { label: "Direct Deposit", color: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" };
+      return { label: "Direct Deposit", variant: "default" };
     case "bridge":
-      return { label: "Bridge + Deposit", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" };
+      return { label: "Bridge + Deposit", variant: "secondary" };
     case "full":
-      return { label: "Swap + Bridge + Deposit", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" };
+      return { label: "Swap + Bridge + Deposit", variant: "outline" };
   }
 }
 
@@ -87,36 +94,49 @@ function StepTracker({ steps }: { steps: StepState[] }) {
       {steps.map((step, idx) => (
         <div key={step.label} className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <div
-              className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${
-                step.status === "done"
-                  ? "bg-green-600 text-white"
-                  : step.status === "active"
-                    ? "bg-blue-600 text-white animate-pulse"
-                    : step.status === "error"
-                      ? "bg-red-600 text-white"
-                      : "bg-zinc-200 text-zinc-400 dark:bg-zinc-700 dark:text-zinc-500"
-              }`}
+            <motion.div
+              initial={false}
+              animate={{
+                scale: step.status === "active" ? 1.1 : 1,
+                backgroundColor:
+                  step.status === "done"
+                    ? "var(--color-green-600, #16a34a)"
+                    : step.status === "active"
+                      ? "var(--color-primary, #2563eb)"
+                      : step.status === "error"
+                        ? "var(--color-destructive, #dc2626)"
+                        : "var(--color-muted, #e4e4e7)",
+              }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium text-primary-foreground"
             >
               {step.status === "done" ? (
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </motion.span>
               ) : step.status === "error" ? (
-                <span>!</span>
+                <span className="text-white">!</span>
               ) : (
-                idx + 1
+                <span className={step.status === "active" ? "text-white" : "text-muted-foreground"}>
+                  {idx + 1}
+                </span>
               )}
-            </div>
+            </motion.div>
             <span
               className={`text-xs font-medium ${
                 step.status === "done"
                   ? "text-green-600 dark:text-green-400"
                   : step.status === "active"
-                    ? "text-blue-600 dark:text-blue-400"
+                    ? "text-primary"
                     : step.status === "error"
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-zinc-400 dark:text-zinc-500"
+                      ? "text-destructive"
+                      : "text-muted-foreground"
               }`}
             >
               {step.label}
@@ -127,7 +147,7 @@ function StepTracker({ steps }: { steps: StepState[] }) {
               className={`h-px w-6 ${
                 step.status === "done"
                   ? "bg-green-600"
-                  : "bg-zinc-200 dark:bg-zinc-700"
+                  : "bg-border"
               }`}
             />
           )}
@@ -417,10 +437,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
             await new Promise<void>((resolve, reject) => {
               bridge(bridgeAmount, config.bridgeChainName)
                 .then(() => {
-                  // Bridge hook sets status to "done" internally
-                  // We need to poll for the done status
                   const check = setInterval(() => {
-                    // The bridge function resolves when done
                     clearInterval(check);
                     resolve();
                   }, 100);
@@ -561,23 +578,22 @@ export function DepositFlow({ appId }: { appId: bigint }) {
       {/* Success state */}
       {flowDone && (
         <div className="flex flex-col gap-3">
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
-            <p className="text-sm font-medium text-green-700 dark:text-green-300">
-              Deposit successful!
-            </p>
-            {vaultBalance !== undefined && (
-              <p className="mt-1 text-xs text-green-600 dark:text-green-400">
-                Vault balance: {vaultBalance.toString()} value units
+          <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+            <AlertDescription>
+              <p className="text-sm font-medium text-green-700 dark:text-green-300">
+                Deposit successful!
               </p>
-            )}
-          </div>
+              {vaultBalance !== undefined && (
+                <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                  Vault balance: {vaultBalance.toString()} value units
+                </p>
+              )}
+            </AlertDescription>
+          </Alert>
           {steps.length > 0 && <StepTracker steps={steps} />}
-          <button
-            onClick={handleReset}
-            className="rounded-lg border border-zinc-200 px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
+          <Button variant="outline" onClick={handleReset}>
             New deposit
-          </button>
+          </Button>
         </div>
       )}
 
@@ -586,13 +602,12 @@ export function DepositFlow({ appId }: { appId: bigint }) {
         <>
           {/* Token selector */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-black dark:text-white">
-              From
-            </label>
-            <button
+            <Label className="mb-1">From</Label>
+            <Button
+              variant="outline"
+              className="flex w-full items-center justify-between font-normal"
               onClick={() => setSourceModalOpen(true)}
               disabled={executing}
-              className="flex w-full items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black transition-colors hover:border-zinc-300 focus:border-blue-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:hover:border-zinc-600"
             >
               {sourceToken ? (
                 <span className="flex items-center gap-2">
@@ -604,29 +619,27 @@ export function DepositFlow({ appId }: { appId: bigint }) {
                     />
                   )}
                   {sourceToken.symbol}
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-muted-foreground">
                     on{" "}
                     {allChains.find((c) => c.id === sourceChainId)?.name ??
                       `Chain ${sourceChainId}`}
                   </span>
                 </span>
               ) : (
-                <span className="text-zinc-400">Select token to deposit...</span>
+                <span className="text-muted-foreground">Select token to deposit...</span>
               )}
-              <span className="text-zinc-400">&rsaquo;</span>
-            </button>
+              <span className="text-muted-foreground">&rsaquo;</span>
+            </Button>
           </div>
 
           {/* Route badge */}
           {routeBadge && (
             <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${routeBadge.color}`}
-              >
+              <Badge variant={routeBadge.variant}>
                 {routeBadge.label}
-              </span>
+              </Badge>
               {route === "direct" && formattedArcBalance !== null && (
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs text-muted-foreground">
                   USDC on Arc: {formattedArcBalance}
                 </span>
               )}
@@ -637,47 +650,50 @@ export function DepositFlow({ appId }: { appId: bigint }) {
           {sourceToken && (
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-sm font-medium text-black dark:text-white">
+                <Label>
                   Amount{route === "direct" || route === "bridge" ? " (USDC)" : ""}
-                </label>
+                </Label>
                 <div className="flex items-center gap-2">
                   {sourceToken.amount && sourceToken.amount > BigInt(0) && (
-                    <button
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
                       onClick={() =>
                         setAmount(
                           formatUnits(sourceToken.amount!, sourceToken.decimals)
                         )
                       }
-                      className="text-xs text-blue-600 hover:underline dark:text-blue-400"
                     >
                       Max
-                    </button>
+                    </Button>
                   )}
                   {route === "full" && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-muted-foreground"
                       onClick={() => setShowSlippage(!showSlippage)}
-                      className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
                       title="Slippage settings"
                     >
                       <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
-              <input
+              <Input
                 type="text"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.0"
                 disabled={executing}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-black placeholder-zinc-400 focus:border-blue-500 focus:outline-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
               />
               {sourceToken.amount !== undefined &&
                 sourceToken.amount > BigInt(0) && (
-                  <p className="mt-1 text-xs text-zinc-400">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Balance:{" "}
                     {Number(
                       formatUnits(sourceToken.amount, sourceToken.decimals)
@@ -689,88 +705,90 @@ export function DepositFlow({ appId }: { appId: bigint }) {
 
           {/* Slippage settings */}
           {showSlippage && route === "full" && (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
-              <label className="mb-1 block text-xs font-medium text-zinc-500">
-                Slippage tolerance (%)
-              </label>
-              <div className="flex items-center gap-2">
-                {["0.1", "0.5", "1.0"].map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => setSlippage(val)}
-                    className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                      slippage === val
-                        ? "bg-blue-600 text-white"
-                        : "bg-zinc-200 text-zinc-600 hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300"
-                    }`}
-                  >
-                    {val}%
-                  </button>
-                ))}
-                <input
-                  type="text"
-                  value={slippage}
-                  onChange={(e) => setSlippage(e.target.value)}
-                  className="w-16 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-black focus:border-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
-                />
-              </div>
-            </div>
+            <Card className="bg-muted/50">
+              <CardContent className="p-3">
+                <Label className="mb-1 text-xs">Slippage tolerance (%)</Label>
+                <div className="flex items-center gap-2">
+                  {["0.1", "0.5", "1.0"].map((val) => (
+                    <Button
+                      key={val}
+                      variant={slippage === val ? "default" : "secondary"}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setSlippage(val)}
+                    >
+                      {val}%
+                    </Button>
+                  ))}
+                  <Input
+                    type="text"
+                    value={slippage}
+                    onChange={(e) => setSlippage(e.target.value)}
+                    className="h-7 w-16 text-xs"
+                  />
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* LI.FI Quote display (full route only) */}
           {route === "full" && amount && sourceToken && (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
-              {quoteLoading ? (
-                <p className="text-xs text-zinc-400">Fetching quote...</p>
-              ) : quoteError ? (
-                <p className="text-xs text-red-500">{quoteError}</p>
-              ) : quote ? (
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">You receive</span>
-                    <span className="text-sm font-medium text-black dark:text-white">
-                      ~
-                      {Number(
-                        formatUnits(BigInt(quote.toAmount), 6)
-                      ).toLocaleString(undefined, {
-                        maximumFractionDigits: 4,
-                      })}{" "}
-                      USDC
-                    </span>
-                  </div>
-                  {quote.gasCostUSD && (
+            <Card className="bg-muted/50">
+              <CardContent className="p-3">
+                {quoteLoading ? (
+                  <p className="text-xs text-muted-foreground">Fetching quote...</p>
+                ) : quoteError ? (
+                  <p className="text-xs text-destructive">{quoteError}</p>
+                ) : quote ? (
+                  <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-zinc-500">Gas cost</span>
-                      <span className="text-xs text-zinc-400">
-                        ${quote.gasCostUSD}
+                      <span className="text-xs text-muted-foreground">You receive</span>
+                      <span className="text-sm font-medium">
+                        ~
+                        {Number(
+                          formatUnits(BigInt(quote.toAmount), 6)
+                        ).toLocaleString(undefined, {
+                          maximumFractionDigits: 4,
+                        })}{" "}
+                        USDC
                       </span>
                     </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">Est. time</span>
-                    <span className="text-xs text-zinc-400">
-                      ~{Math.ceil(quote.executionDuration / 60)} min (swap) + ~15 min (bridge)
-                    </span>
+                    {quote.gasCostUSD && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Gas cost</span>
+                        <span className="text-xs text-muted-foreground">
+                          ${quote.gasCostUSD}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Est. time</span>
+                      <span className="text-xs text-muted-foreground">
+                        ~{Math.ceil(quote.executionDuration / 60)} min (swap) + ~15 min (bridge)
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ) : null}
-            </div>
+                ) : null}
+              </CardContent>
+            </Card>
           )}
 
           {/* Balance display for bridge route */}
           {route === "bridge" && sourceToken && sourceChainId && (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500">Route</span>
-                <span className="text-xs text-zinc-400">
-                  {getCircleBridgeConfig(sourceChainId)?.label} → Arc Testnet via Circle CCTP
-                </span>
-              </div>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-xs text-zinc-500">Est. time</span>
-                <span className="text-xs text-zinc-400">~15 min</span>
-              </div>
-            </div>
+            <Card className="bg-muted/50">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Route</span>
+                  <span className="text-xs text-muted-foreground">
+                    {getCircleBridgeConfig(sourceChainId)?.label} → Arc Testnet via Circle CCTP
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Est. time</span>
+                  <span className="text-xs text-muted-foreground">~15 min</span>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Step tracker (during execution) */}
@@ -778,33 +796,26 @@ export function DepositFlow({ appId }: { appId: bigint }) {
 
           {/* Error display */}
           {flowError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950">
-              <p className="text-xs text-red-600 dark:text-red-400">
+            <Alert variant="destructive">
+              <AlertDescription>
                 {flowError.length > 200
                   ? flowError.slice(0, 200) + "..."
                   : flowError}
-              </p>
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Action buttons */}
           <div className="flex items-center gap-3">
             {flowError && !executing && (
-              <button
-                onClick={handleRetry}
-                className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
-              >
+              <Button variant="destructive" onClick={handleRetry}>
                 Retry
-              </button>
+              </Button>
             )}
             {!flowError && (
-              <button
-                onClick={handleDeposit}
-                disabled={!canDeposit}
-                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <Button onClick={handleDeposit} disabled={!canDeposit}>
                 {executing ? "Depositing..." : "Deposit"}
-              </button>
+              </Button>
             )}
           </div>
         </>

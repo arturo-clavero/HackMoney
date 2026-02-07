@@ -10,6 +10,9 @@ import {
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { getContractAddress } from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const ARC_CHAIN_ID = 5042002;
 
@@ -79,9 +82,8 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
   });
 
   const { writeContract, isPending, data: txHash } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  const { isLoading: isConfirming, isSuccess } =
+    useWaitForTransactionReceipt({ hash: txHash });
 
   // Count enabled collateral
   const enabledCount = (collateralList ?? []).filter(
@@ -117,13 +119,11 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
   }
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-800">
-      <div className="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-        <h2 className="font-semibold text-black dark:text-white">
-          Collateral
-        </h2>
-      </div>
-      <div className="flex flex-col gap-2 p-5">
+    <Card>
+      <CardHeader>
+        <CardTitle>Collateral</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
         {collateralList.map((token, i) => {
           const isEnabled = allowedChecks.data?.[i]?.result === true;
           const name = tokenNames.data?.[i]?.result ?? "Unknown";
@@ -133,48 +133,42 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
           return (
             <div
               key={token}
-              className="flex items-center gap-4 rounded-lg border border-zinc-100 p-3 dark:border-zinc-800"
+              className="flex items-center gap-4 rounded-lg border border-border p-3"
             >
               <div
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                   isEnabled
                     ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                    : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
+                    : "bg-muted text-muted-foreground"
                 }`}
               >
                 {(symbol as string).slice(0, 3)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-black dark:text-white">
-                  {symbol as string}
-                </p>
-                <p className="text-xs text-zinc-400 truncate">
+                <p className="text-sm font-medium">{symbol as string}</p>
+                <p className="text-xs text-muted-foreground truncate">
                   {name as string} &middot;{" "}
                   <span className="font-mono">{truncateAddress(token)}</span>
                 </p>
               </div>
-              <span
-                className={`text-xs font-medium ${
-                  isEnabled
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-zinc-400"
-                }`}
-              >
+              <Badge variant={isEnabled ? "default" : "secondary"}>
                 {isEnabled ? "Enabled" : "Disabled"}
-              </span>
+              </Badge>
               {isOwner && (
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleToggle(token, !!isEnabled)}
                   disabled={
                     isPending ||
                     isConfirming ||
                     (isEnabled && !canDisable)
                   }
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={
                     isEnabled
-                      ? "border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
-                      : "border border-green-200 text-green-600 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950"
-                  }`}
+                      ? "border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+                      : "border-green-200 text-green-600 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-950"
+                  }
                   title={
                     isEnabled && !canDisable
                       ? "At least one collateral must remain enabled"
@@ -186,12 +180,12 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
                     : isEnabled
                       ? "Disable"
                       : "Enable"}
-                </button>
+                </Button>
               )}
             </div>
           );
         })}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
