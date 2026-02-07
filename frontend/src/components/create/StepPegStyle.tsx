@@ -1,6 +1,8 @@
 "use client";
 
 import { useWizard, type PegStyle } from "./WizardContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface PegOption {
   id: PegStyle;
@@ -50,46 +52,43 @@ export function StepPegStyle() {
       {PEG_OPTIONS.map((opt) => {
         const isSelected = state.pegStyle === opt.id;
         return (
-          <button
+          <Card
             key={opt.id}
-            disabled={!opt.enabled}
-            onClick={() => select(opt.id)}
-            className={`relative flex flex-col gap-2 rounded-xl border p-5 text-left transition-colors ${
+            className={`cursor-pointer transition-colors ${
               !opt.enabled
-                ? "cursor-not-allowed opacity-50 border-zinc-200 dark:border-zinc-800"
+                ? "cursor-not-allowed opacity-50"
                 : isSelected
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
-                  : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+                  ? "border-primary bg-primary/5"
+                  : "hover:border-muted-foreground/30"
             }`}
+            onClick={() => opt.enabled && select(opt.id)}
           >
-            <div className="flex items-center gap-3">
-              <div
-                className={`h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center ${
-                  isSelected
-                    ? "border-blue-600"
-                    : "border-zinc-300 dark:border-zinc-600"
-                }`}
-              >
-                {isSelected && (
-                  <div className="h-2.5 w-2.5 rounded-full bg-blue-600" />
+            <CardContent className="flex flex-col gap-2 p-5">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center ${
+                    isSelected
+                      ? "border-primary"
+                      : "border-muted-foreground/30"
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                  )}
+                </div>
+                <h3 className="text-lg font-semibold">{opt.title}</h3>
+                {!opt.enabled && (
+                  <Badge variant="secondary">Coming Soon</Badge>
                 )}
               </div>
-              <h3 className="text-lg font-semibold text-black dark:text-white">
-                {opt.title}
-              </h3>
-              {!opt.enabled && (
-                <span className="rounded-full bg-zinc-200 px-2.5 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                  Coming Soon
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 ml-8">
-              {opt.description}
-            </p>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 ml-8">
-              Accepts: {opt.accepts}
-            </p>
-          </button>
+              <p className="text-sm text-muted-foreground ml-8">
+                {opt.description}
+              </p>
+              <p className="text-xs text-muted-foreground/60 ml-8">
+                Accepts: {opt.accepts}
+              </p>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
