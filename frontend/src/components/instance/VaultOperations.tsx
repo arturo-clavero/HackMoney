@@ -110,7 +110,7 @@ function MintTab({
     functionName: "getVaultBalance",
     args: [appId, address as Address],
     chainId,
-    query: { enabled: pegType === "hard" && !!contractAddress && !!address },
+    query: { enabled: pegType === "hard" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   // MediumPeg: position
@@ -120,7 +120,7 @@ function MintTab({
     functionName: "getPosition",
     args: [appId, address as Address],
     chainId,
-    query: { enabled: pegType === "medium" && !!contractAddress && !!address },
+    query: { enabled: pegType === "medium" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   const {
@@ -274,7 +274,7 @@ function RedeemTab({
     functionName: "getAppConfig",
     args: [appId],
     chainId,
-    query: { enabled: !!contractAddress },
+    query: { enabled: !!contractAddress, staleTime: 30_000 },
   });
 
   const coinAddress = appConfig?.coin as Address | undefined;
@@ -285,7 +285,7 @@ function RedeemTab({
     functionName: "balanceOf",
     args: [address as Address],
     chainId,
-    query: { enabled: !!coinAddress && !!address },
+    query: { enabled: !!coinAddress && !!address, staleTime: 30_000 },
   });
 
   const {
@@ -409,7 +409,7 @@ function WithdrawTab({
     functionName: "getVaultBalance",
     args: [appId, address as Address],
     chainId,
-    query: { enabled: pegType === "hard" && !!contractAddress && !!address },
+    query: { enabled: pegType === "hard" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   // MediumPeg: position (for display)
@@ -419,7 +419,7 @@ function WithdrawTab({
     functionName: "getPosition",
     args: [appId, address as Address],
     chainId,
-    query: { enabled: pegType === "medium" && !!contractAddress && !!address },
+    query: { enabled: pegType === "medium" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   const {

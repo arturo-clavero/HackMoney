@@ -6,7 +6,6 @@ import {
   useReadContract,
   useWriteContract,
   useWaitForTransactionReceipt,
-  useWatchContractEvent,
   useEnsAddress,
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
@@ -75,7 +74,7 @@ export function UserManagement({
     functionName: "getAppConfig",
     args: [appId],
     chainId,
-    query: { enabled: !!contractAddress },
+    query: { enabled: !!contractAddress, staleTime: 30_000 },
   });
 
   const owner = appConfig?.owner as Address | undefined;
@@ -89,7 +88,7 @@ export function UserManagement({
     try {
       const currentBlock = await publicClient.getBlockNumber();
       const deployBlock = addresses.deployBlock;
-      const CHUNK = BigInt(9999);
+      const CHUNK = BigInt(500000);
       const allLogs: any[] = [];
 
       for (
@@ -128,17 +127,6 @@ export function UserManagement({
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
-
-  // Watch for new events and refresh the list
-  useWatchContractEvent({
-    address: contractAddress,
-    abi,
-    eventName: "UserListUpdated",
-    chainId,
-    onLogs: () => {
-      fetchUsers();
-    },
-  });
 
   const {
     writeContract,

@@ -61,7 +61,7 @@ export default function InstancePage({
     functionName: "getAppConfig",
     args: [appId!],
     chainId,
-    query: { enabled: !!contractAddress && appId !== undefined },
+    query: { enabled: !!contractAddress && appId !== undefined, staleTime: 30_000 },
   });
 
   const coinAddress = appConfig?.coin as Address | undefined;
@@ -73,7 +73,7 @@ export default function InstancePage({
           { address: coinAddress, abi: erc20Abi, functionName: "symbol" as const, chainId },
         ]
       : [],
-    query: { enabled: !!coinAddress },
+    query: { enabled: !!coinAddress, staleTime: 30_000 },
   });
 
   const coinName = coinReads.data?.[0]?.result as string | undefined;

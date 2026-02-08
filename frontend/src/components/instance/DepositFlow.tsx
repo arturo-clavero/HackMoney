@@ -280,7 +280,7 @@ export function DepositFlow({
     functionName: "balanceOf",
     args: [address as Address],
     chainId: ARC_CHAIN_ID,
-    query: { enabled: !!address },
+    query: { enabled: !!address, staleTime: 30_000 },
   });
 
   // ─── USDC balance on Arb Sepolia ──────────────────────────────────────
@@ -292,7 +292,7 @@ export function DepositFlow({
     functionName: "balanceOf",
     args: [address as Address],
     chainId: ARB_SEPOLIA_CHAIN_ID,
-    query: { enabled: !!address },
+    query: { enabled: !!address, staleTime: 30_000 },
   });
 
   // ─── USDC balance on Base Sepolia ───────────────────────────────────
@@ -304,7 +304,7 @@ export function DepositFlow({
     functionName: "balanceOf",
     args: [address as Address],
     chainId: BASE_SEPOLIA_CHAIN_ID,
-    query: { enabled: !!address },
+    query: { enabled: !!address, staleTime: 30_000 },
   });
 
   // ─── waArbUSDCn balance on Arbitrum ───────────────────────────────────
@@ -314,7 +314,7 @@ export function DepositFlow({
     functionName: "balanceOf",
     args: [address as Address],
     chainId: ARBITRUM_CHAIN_ID,
-    query: { enabled: !!address && pegType === "medium" },
+    query: { enabled: !!address && pegType === "medium", staleTime: 30_000 },
   });
 
   // ─── Vault balance (HardPeg) / Position (MediumPeg) ────────────────────
@@ -324,7 +324,7 @@ export function DepositFlow({
     functionName: "getVaultBalance",
     args: [appId, address as Address],
     chainId: instanceChainId,
-    query: { enabled: pegType === "hard" && !!contractAddress && !!address },
+    query: { enabled: pegType === "hard" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   const { data: position, refetch: refetchPosition } = useReadContract({
@@ -333,7 +333,7 @@ export function DepositFlow({
     functionName: "getPosition",
     args: [appId, address as Address],
     chainId: instanceChainId,
-    query: { enabled: pegType === "medium" && !!contractAddress && !!address },
+    query: { enabled: pegType === "medium" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   // ─── Load tokens on mount ─────────────────────────────────────────────

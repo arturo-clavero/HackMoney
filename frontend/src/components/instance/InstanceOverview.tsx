@@ -44,7 +44,7 @@ export function InstanceOverview({
     functionName: "getAppConfig",
     args: [appId],
     chainId,
-    query: { enabled: !!contractAddress },
+    query: { enabled: !!contractAddress, staleTime: 30_000 },
   });
 
   const coinAddress = appConfig?.coin as Address | undefined;
@@ -75,7 +75,7 @@ export function InstanceOverview({
           },
         ]
       : [],
-    query: { enabled: !!coinAddress },
+    query: { enabled: !!coinAddress, staleTime: 30_000 },
   });
 
   // HardPeg: vault balance (single value)
@@ -85,7 +85,7 @@ export function InstanceOverview({
     functionName: "getVaultBalance",
     args: [appId, address as Address],
     chainId,
-    query: { enabled: pegType === "hard" && !!contractAddress && !!address },
+    query: { enabled: pegType === "hard" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   // MediumPeg: position (principal + shares)
@@ -95,7 +95,7 @@ export function InstanceOverview({
     functionName: "getPosition",
     args: [appId, address as Address],
     chainId,
-    query: { enabled: pegType === "medium" && !!contractAddress && !!address },
+    query: { enabled: pegType === "medium" && !!contractAddress && !!address, staleTime: 30_000 },
   });
 
   const coinName = coinReads.data?.[0]?.result as string | undefined;

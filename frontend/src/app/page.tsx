@@ -4,9 +4,7 @@ import Link from "next/link";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import {
   useAccount,
-  useWatchContractEvent,
   useReadContracts,
-  usePublicClient,
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
@@ -15,9 +13,8 @@ import {
   ARC_CHAIN_ID,
   ARBITRUM_CHAIN_ID,
 } from "@/contracts/addresses";
-import { createPublicClient, http, erc20Abi, type Address } from "viem";
-import { arbitrum } from "viem/chains";
-import { useState, useEffect } from "react";
+import { erc20Abi, type Address } from "viem";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -49,6 +46,8 @@ interface PegSource {
   abi: typeof hardPegAbi | typeof mediumPegAbi;
 }
 
+const MAX_APP_ID = 10;
+
 const PEG_SOURCES = ([
   {
     chainId: ARC_CHAIN_ID,
@@ -64,138 +63,53 @@ const PEG_SOURCES = ([
   },
 ] as PegSource[]).filter((s) => !!s.contractAddress);
 
+// Build multicall batch: getAppConfig(1..MAX_APP_ID) for each peg source
+const appConfigCalls = PEG_SOURCES.flatMap((source) =>
+  Array.from({ length: MAX_APP_ID }, (_, i) => ({
+    address: source.contractAddress,
+    abi: source.abi,
+    functionName: "getAppConfig" as const,
+    args: [BigInt(i + 1)] as const,
+    chainId: source.chainId,
+    // metadata for filtering later
+    _pegType: source.pegType,
+    _chainId: source.chainId,
+    _id: BigInt(i + 1),
+  }))
+);
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
 function InstancesList() {
   const { address } = useAppKitAccount();
 
-  const arcClient = usePublicClient({ chainId: ARC_CHAIN_ID });
-  const arbClient = createPublicClient({
-    chain: arbitrum,
-    transport: http("https://arb1.arbitrum.io/rpc"),
+  // Single multicall: reads getAppConfig(1..50) from both contracts
+  const { data: appConfigs, isLoading } = useReadContracts({
+    contracts: appConfigCalls.map(({ _pegType, _chainId, _id, ...call }) => call),
+    query: { enabled: !!address, staleTime: 60_000 },
   });
-  const clientByChain: Record<number, ReturnType<typeof usePublicClient> | typeof arbClient> = {
-    [ARC_CHAIN_ID]: arcClient,
-    [ARBITRUM_CHAIN_ID]: arbClient,
-  };
 
-  const [instances, setInstances] = useState<Instance[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!address) return;
-    let cancelled = false;
-
-    (async () => {
-      const allInstances: Instance[] = [];
-
-      for (const source of PEG_SOURCES) {
-        const client = clientByChain[source.chainId];
-        if (!client) continue;
-        const addrs = getContractAddress(source.chainId);
-        if (!addrs) continue;
-
-        try {
-          const currentBlock = await client.getBlockNumber();
-          const deployBlock = addrs.deployBlock;
-          const CHUNK = BigInt(9999);
-
-          for (
-            let from = deployBlock;
-            from <= currentBlock;
-            from += CHUNK + BigInt(1)
-          ) {
-            if (cancelled) return;
-            const to =
-              from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
-            const logs = await client.getContractEvents({
-              address: source.contractAddress,
-              abi: source.abi,
-              eventName: "RegisteredApp",
-              args: { owner: address as Address },
-              fromBlock: from,
-              toBlock: to,
-            });
-            for (const log of logs) {
-              allInstances.push({
-                id: log.args.id!,
-                coin: log.args.coin! as Address,
-                pegType: source.pegType,
-                chainId: source.chainId,
-              });
-            }
-          }
-        } catch {
-          // continue with other sources
-        }
-      }
-
-      if (!cancelled) {
-        setInstances(allInstances);
-        setLoaded(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [address, arcClient]);
-
-  // Watch for NEW events on HardPeg (Arc)
-  const arcAddresses = getContractAddress(ARC_CHAIN_ID);
-  useWatchContractEvent({
-    address: arcAddresses?.hardPeg,
-    abi: hardPegAbi,
-    eventName: "RegisteredApp",
-    args: { owner: address as Address },
-    onLogs(logs) {
-      const newInstances = logs.map((log) => ({
-        id: log.args.id!,
-        coin: log.args.coin! as Address,
-        pegType: "hard" as PegType,
-        chainId: ARC_CHAIN_ID,
-      }));
-      setInstances((prev) => {
-        const existingIds = new Set(
-          prev.map((i) => `${i.pegType}-${i.chainId}-${i.id.toString()}`)
-        );
-        const unique = newInstances.filter(
-          (i) =>
-            !existingIds.has(`${i.pegType}-${i.chainId}-${i.id.toString()}`)
-        );
-        return unique.length > 0 ? [...prev, ...unique] : prev;
+  // Filter to instances owned by connected wallet
+  const instances = useMemo(() => {
+    if (!appConfigs || !address) return [];
+    const result: Instance[] = [];
+    for (let i = 0; i < appConfigCalls.length; i++) {
+      const config = appConfigs[i];
+      if (config.status !== "success" || !config.result) continue;
+      const { owner, coin } = config.result as { owner: Address; coin: Address; tokensAllowed: bigint };
+      if (owner === ZERO_ADDRESS) continue;
+      if (owner.toLowerCase() !== address.toLowerCase()) continue;
+      result.push({
+        id: appConfigCalls[i]._id,
+        coin: coin as Address,
+        pegType: appConfigCalls[i]._pegType,
+        chainId: appConfigCalls[i]._chainId,
       });
-    },
-    enabled: !!arcAddresses?.hardPeg && !!address,
-  });
+    }
+    return result;
+  }, [appConfigs, address]);
 
-  // Watch for NEW events on MediumPeg (Arbitrum)
-  const arbAddresses = getContractAddress(ARBITRUM_CHAIN_ID);
-  useWatchContractEvent({
-    address: arbAddresses?.mediumPeg,
-    abi: mediumPegAbi,
-    eventName: "RegisteredApp",
-    args: { owner: address as Address },
-    onLogs(logs) {
-      const newInstances = logs.map((log) => ({
-        id: log.args.id!,
-        coin: log.args.coin! as Address,
-        pegType: "medium" as PegType,
-        chainId: ARBITRUM_CHAIN_ID,
-      }));
-      setInstances((prev) => {
-        const existingIds = new Set(
-          prev.map((i) => `${i.pegType}-${i.chainId}-${i.id.toString()}`)
-        );
-        const unique = newInstances.filter(
-          (i) =>
-            !existingIds.has(`${i.pegType}-${i.chainId}-${i.id.toString()}`)
-        );
-        return unique.length > 0 ? [...prev, ...unique] : prev;
-      });
-    },
-    enabled: !!arbAddresses?.mediumPeg && !!address,
-  });
-
-  // Read name() and symbol() for each coin — on the correct chain
+  // Read name() and symbol() for each discovered coin
   const coinNames = useReadContracts({
     contracts: instances.map((inst) => ({
       address: inst.coin,
@@ -203,7 +117,7 @@ function InstancesList() {
       functionName: "name" as const,
       chainId: inst.chainId,
     })),
-    query: { enabled: instances.length > 0 },
+    query: { enabled: instances.length > 0, staleTime: 60_000 },
   });
 
   const coinSymbols = useReadContracts({
@@ -213,10 +127,10 @@ function InstancesList() {
       functionName: "symbol" as const,
       chainId: inst.chainId,
     })),
-    query: { enabled: instances.length > 0 },
+    query: { enabled: instances.length > 0, staleTime: 60_000 },
   });
 
-  if (!loaded) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-3 py-12">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
