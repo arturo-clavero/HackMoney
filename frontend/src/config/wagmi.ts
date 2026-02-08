@@ -1,4 +1,4 @@
-import { cookieStorage, createStorage } from "@wagmi/core";
+import { cookieStorage, createStorage, http } from "@wagmi/core";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import {
   mainnet,
@@ -63,6 +63,9 @@ export const wagmiAdapter = new WagmiAdapter({
   ssr: true,
   projectId,
   networks,
+  transports: {
+    [arbitrum.id]: http("https://arb1.arbitrum.io/rpc"),
+  },
 });
 
 export const config = wagmiAdapter.wagmiConfig;
