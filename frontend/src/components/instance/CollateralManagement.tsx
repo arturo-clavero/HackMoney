@@ -23,12 +23,26 @@ function truncateAddress(addr: string) {
 export function CollateralManagement({ appId }: { appId: bigint }) {
   const { address } = useAppKitAccount();
   const addresses = getContractAddress(ARC_CHAIN_ID);
-  const contractAddress = addresses?.hardPeg;
+  // const contractAddress = addresses?.hardPeg;
+
+   const contractAddress =
+    pegType === "medium"
+      ? addresses?.mediumPeg
+      : pegType === "soft"
+      ? addresses?.softPeg
+      : addresses?.hardPeg;
+
+  const abi =
+    pegType === "medium"
+      ? mediumPegAbi
+      : pegType === "soft"
+      ? softPegAbi
+      : hardPegAbi;
 
   // Read app config to determine owner
   const { data: appConfig } = useReadContract({
     address: contractAddress,
-    abi: hardPegAbi,
+    abi,
     functionName: "getAppConfig",
     args: [appId],
     chainId: ARC_CHAIN_ID,
@@ -42,7 +56,7 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
   // Fetch global collateral list
   const { data: collateralList } = useReadContract({
     address: contractAddress,
-    abi: hardPegAbi,
+    abi,
     functionName: "getGlobalCollateralList",
     chainId: ARC_CHAIN_ID,
     query: { enabled: !!contractAddress },
@@ -52,7 +66,7 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
   const allowedChecks = useReadContracts({
     contracts: (collateralList ?? []).map((token) => ({
       address: contractAddress!,
-      abi: hardPegAbi,
+      abi: abi,
       functionName: "isAppCollateralAllowed" as const,
       args: [appId, token] as const,
       chainId: ARC_CHAIN_ID,
@@ -95,14 +109,14 @@ export function CollateralManagement({ appId }: { appId: bigint }) {
     if (currentlyEnabled) {
       writeContract({
         address: contractAddress,
-        abi: hardPegAbi,
+        abi: abi,
         functionName: "removeAppCollateral",
         args: [appId, token],
       });
     } else {
       writeContract({
         address: contractAddress,
-        abi: hardPegAbi,
+        abi: abi,
         functionName: "addAppCollateral",
         args: [appId, token],
       });

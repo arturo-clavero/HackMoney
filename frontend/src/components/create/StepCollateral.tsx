@@ -5,10 +5,13 @@ import { useWizard } from "./WizardContext";
 import { useReadContract, useReadContracts } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import { softPegAbi } from "@/contracts/abis/softPeg";
+
 import {
   getContractAddress,
   ARC_CHAIN_ID,
   ARBITRUM_CHAIN_ID,
+  SEPOLIA_CHAIN_ID,
   ARBITRUM_USDC,
   WA_ARB_USDC_VAULT,
 } from "@/contracts/addresses";
@@ -80,9 +83,30 @@ export function StepCollateral() {
     return <YieldPegCollateral />;
   }
 
-  const chainId = ARC_CHAIN_ID;
+  const chainId =
+  state.pegStyle === "soft"
+    ? SEPOLIA_CHAIN_ID
+    : state.pegStyle === "medium"
+    ? ARBITRUM_CHAIN_ID
+    : ARC_CHAIN_ID;
+
   const addresses = getContractAddress(chainId);
-  const contractAddress = addresses?.hardPeg;
+  // const contractAddress = addresses?.hardPeg;
+const pegType = state.pegStyle; // "hard" | "medium" | "soft"
+
+const contractAddress =
+  pegType === "soft"
+    ? addresses?.softPeg
+    : pegType === "medium"
+    ? addresses?.mediumPeg
+    : addresses?.hardPeg;
+
+const abi =
+  pegType === "soft"
+    ? softPegAbi
+    : pegType === "medium"
+    ? mediumPegAbi
+    : hardPegAbi;
 
   // Fetch registered collateral addresses from protocol
   const {
@@ -91,24 +115,41 @@ export function StepCollateral() {
     isError: listError,
   } = useReadContract({
     address: contractAddress,
-    abi: hardPegAbi,
+    abi: abi,
     functionName: "getGlobalCollateralList",
     chainId,
     query: { enabled: !!contractAddress },
   });
 
+  const { data, isError, error } = useReadContract({
+  address: contractAddress,
+  abi,
+  functionName: "getGlobalCollateralList",
+  chainId,
+  query: { enabled: !!contractAddress },
+});
+
+useEffect(() => {
+  if (isError) {
+    console.error("Collateral read failed", error);
+    alert("Collateral read failed: " + error?.message);
+  } else {
+    console.log("Collateral data", data);
+  }
+}, [isError, error, data]);
+
   // Fetch collateral config (debt cap, decimals, etc.) for each token
   const collateralConfigs = useReadContracts({
     contracts: (collateralList ?? []).map((token) => ({
       address: contractAddress!,
-      abi: hardPegAbi,
+      abi: abi,
       functionName: "getGlobalCollateral" as const,
       args: [token] as const,
       chainId,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
-
+  
   // Fetch ERC20 name() for each token
   const tokenNames = useReadContracts({
     contracts: (collateralList ?? []).map((token) => ({
@@ -144,6 +185,11 @@ export function StepCollateral() {
       <p className="text-muted-foreground">Loading available collateral...</p>
     );
   }
+
+
+  if (listError) {
+  console.error("getGlobalCollateralList error", listError);
+}
 
   if (listError || !collateralList) {
     return (
@@ -206,11 +252,11 @@ export function StepCollateral() {
                   </div>
                   <div className="flex gap-3 mt-1 text-xs text-muted-foreground/60">
                     <span>{decimals} decimals</span>
-                    {config && (
-                      <span>
-                        Debt cap: {formatUnits(config.debtCap, 18)}
-                      </span>
-                    )}
+                    {/* {config && (
+                      // <span>
+                      //   Bonus: {formatUnits(config.bonus, 18)}
+                      // </span>
+                    )} */}
                     <span className="font-mono">{truncateAddress(token)}</span>
                   </div>
                 </div>

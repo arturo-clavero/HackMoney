@@ -8,10 +8,13 @@ import {
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import { softPegAbi } from "@/contracts/abis/softPeg";
+
 import {
   getContractAddress,
   ARC_CHAIN_ID,
   ARBITRUM_CHAIN_ID,
+  SEPOLIA_CHAIN_ID
 } from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
 import { useMemo } from "react";
@@ -30,7 +33,7 @@ function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-type PegType = "hard" | "medium";
+type PegType = "hard" | "medium" | "soft";
 
 interface Instance {
   id: bigint;
@@ -43,7 +46,7 @@ interface PegSource {
   chainId: number;
   pegType: PegType;
   contractAddress: Address;
-  abi: typeof hardPegAbi | typeof mediumPegAbi;
+  abi: typeof hardPegAbi | typeof mediumPegAbi | typeof softPegAbi;
 }
 
 const MAX_APP_ID = 10;
@@ -60,6 +63,12 @@ const PEG_SOURCES = ([
     pegType: "medium" as PegType,
     contractAddress: getContractAddress(ARBITRUM_CHAIN_ID)?.mediumPeg as Address,
     abi: mediumPegAbi,
+  },
+  {
+    chainId: SEPOLIA_CHAIN_ID,
+    pegType: "soft" as PegType,
+    contractAddress: getContractAddress(SEPOLIA_CHAIN_ID)?.softPeg as Address,
+    abi: softPegAbi,
   },
 ] as PegSource[]).filter((s) => !!s.contractAddress);
 

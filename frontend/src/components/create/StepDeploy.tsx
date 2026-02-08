@@ -10,11 +10,14 @@ import {
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import { softPegAbi } from "@/contracts/abis/softPeg";
+
 import {
   getContractAddress,
   ARC_CHAIN_ID,
   ARBITRUM_CHAIN_ID,
-  WA_ARB_USDC_VAULT,
+  SEPOLIA_CHAIN_ID,
+  WA_ARB_USDC_VAULT
 } from "@/contracts/addresses";
 import { Actions } from "@/contracts/actions";
 import { decodeEventLog } from "viem";
@@ -37,10 +40,25 @@ export function StepDeploy() {
     : undefined;
 
   const isYield = state.pegStyle === "yield";
-  const targetChainId = isYield ? ARBITRUM_CHAIN_ID : ARC_CHAIN_ID;
+  const targetChainId =
+  state.pegStyle === "yield"
+    ? ARBITRUM_CHAIN_ID
+    : state.pegStyle === "soft"
+    ? SEPOLIA_CHAIN_ID
+    : ARC_CHAIN_ID;
+
   const addresses = getContractAddress(targetChainId);
-  const contractAddress = isYield ? addresses?.mediumPeg : addresses?.hardPeg;
-  const abi = isYield ? mediumPegAbi : hardPegAbi;
+const contractAddress = isYield
+  ? addresses?.mediumPeg
+  : state.pegStyle === "soft"
+  ? addresses?.softPeg
+  : addresses?.hardPeg;
+
+const abi = isYield
+  ? mediumPegAbi
+  : state.pegStyle === "soft"
+  ? softPegAbi
+  : hardPegAbi;
 
   const [appId, setAppId] = useState<bigint | null>(null);
   const [coinAddress, setCoinAddress] = useState<string | null>(null);
@@ -142,7 +160,12 @@ export function StepDeploy() {
   };
 
   const error = writeError || receiptError;
-  const chainLabel = isYield ? "Arbitrum" : "Arc Testnet";
+const chainLabel =
+  state.pegStyle === "yield"
+    ? "Arbitrum"
+    : state.pegStyle === "soft"
+    ? "Sepolia"
+    : "Arc Testnet";
 
   // For yield peg, wait for both instance creation and vault setup
   const fullyDone = isYield

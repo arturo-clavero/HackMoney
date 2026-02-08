@@ -7,6 +7,7 @@ import { useReadContract, useReadContracts } from "wagmi";
 import { useSearchParams } from "next/navigation";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import { softPegAbi } from "@/contracts/abis/softPeg";
 import {
   getContractAddress,
   ARC_CHAIN_ID,
@@ -19,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageTransition, motion } from "@/components/motion";
 
-type PegType = "hard" | "medium";
+type PegType = "hard" | "medium" | "soft";
 
 export default function InstancePage({
   params,
@@ -35,10 +36,8 @@ export default function InstancePage({
   const chainId = Number(searchParams.get("chain") ?? ARC_CHAIN_ID);
 
   const addresses = getContractAddress(chainId);
-  const contractAddress =
-    pegType === "medium" ? addresses?.mediumPeg : addresses?.hardPeg;
-  const abi = pegType === "medium" ? mediumPegAbi : hardPegAbi;
-
+ const contractAddress = pegType === "medium" ? addresses?.mediumPeg : pegType === "hard" ? addresses?.hardPeg : addresses?.softPeg;
+const abi = pegType === "medium" ? mediumPegAbi : pegType === "hard" ? hardPegAbi : softPegAbi;
   let appId: bigint | undefined;
   try {
     appId = BigInt(id);

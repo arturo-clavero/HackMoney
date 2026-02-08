@@ -35,7 +35,7 @@ const PEG_OPTIONS: PegOption[] = [
     description:
       "Backed by volatile assets like ETH or BTC. More capital flexible, but requires overcollateralization and carries liquidation risk.",
     accepts: "Volatile assets",
-    enabled: false,
+    enabled: true,
   },
 ];
 

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import {MediumPeg} from "../../../src/core/MediumPeg.sol";
-import {MediumPegAdapter} from "../../../src/adapters/MediumPegAdapter.sol";
-import "../../../src/Timelock.sol";
-import "../../../src/core/shared/CollateralManager.sol";
-import "../../../src/utils/CollateralLib.sol";
-import "../../../src/utils/RolesLib.sol";
+import {SoftPeg} from "../../src/core/SoftPeg.sol";
+import {SoftPegAdapter} from "../../src/adapters/SoftPegAdapter.sol";
+import "../../src/Timelock.sol";
+import "../../src/core/shared/CollateralManager.sol";
+import "../../src/utils/CollateralLib.sol";
+import "../../src/utils/RolesLib.sol";
 
 
 struct DeploymentInfo {
@@ -15,10 +15,10 @@ struct DeploymentInfo {
     address softPegAdapter;
 }
 
-contract DeployMediumPeg is Script {
+contract DeploySoftPeg is Script {
     Timelock timelock;
-    MediumPeg softPeg;
-    MediumPegAdapter softPegAdapter;
+    SoftPeg softPeg;
+    SoftPegAdapter softPegAdapter;
 
     function run() external returns (DeploymentInfo memory info) {
         address owner = vm.envAddress("OWNER");
@@ -29,14 +29,14 @@ contract DeployMediumPeg is Script {
 
         timelock = new Timelock();
  
-        softPeg = new MediumPeg(
+        softPeg = new SoftPeg(
             deployer,
             address(timelock),
             5_000_000 ether,    //global debt cap
             1_000 ether        //mint cap per tx
         );
 
-        softPegAdapter = new MediumPegAdapter(address(softPeg));
+        softPegAdapter = new SoftPegAdapter(address(softPeg));
         
         setTimelockedCalls();
         addGlobalCollateral();
@@ -45,8 +45,8 @@ contract DeployMediumPeg is Script {
         vm.stopBroadcast();
 
         console.log("Deployment Info ");
-        console.log("MediumPeg core contract:   ", address(softPeg));
-        console.log("MediumPeg adapter:        ", address(softPegAdapter));
+        console.log("SoftPeg core contract:   ", address(softPeg));
+        console.log("SoftPeg adapter:        ", address(softPegAdapter));
         info = DeploymentInfo(address(softPeg), address(softPegAdapter));
     }
 
@@ -71,7 +71,7 @@ contract DeployMediumPeg is Script {
 
         if (chainId == 11155111) {
             address pyusd = address(0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9);
-            feeds[0] = address(0);
+            feeds[0] = address(0x57020Ba11D61b188a1Fd390b108D233D87c06057);
             softPeg.updateGlobalCollateral(CollateralInput({
                 tokenAddress: pyusd,
                 mode: Collateral.MODE_STABLE,
@@ -83,7 +83,7 @@ contract DeployMediumPeg is Script {
             }));
 
             address usdc = address(0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238);
-            feeds[0] = address(0); 
+            feeds[0] = address(0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E); 
             softPeg.updateGlobalCollateral(CollateralInput({
                 tokenAddress: usdc,
                 mode: Collateral.MODE_STABLE,
@@ -94,8 +94,8 @@ contract DeployMediumPeg is Script {
                 debtCap: 200_000 ether
             }));
 
-            address dai = address(0);
-            feeds[0] = address(0);
+            address dai = address(0x776b6fC2eD15D6Bb5Fc32e0c89DE68683118c62A);
+            feeds[0] = address(0x14866185B1962B63C3Ea9E03Bc1da838bab34C19);
             softPeg.updateGlobalCollateral(CollateralInput({
                 tokenAddress: dai,
                 mode: Collateral.MODE_STABLE,
@@ -105,6 +105,33 @@ contract DeployMediumPeg is Script {
                 liquidationBonus: 5,
                 debtCap: 200_000 ether
             }));
+
+
+            address weth = address(0xf531B8F309Be94191af87605CfBf600D71C2cFe0);
+            feeds[0] = address(0x694AA1769357215DE4FAC081bf1f309aDC325306);
+            softPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: weth,
+                mode: Collateral.MODE_VOLATILE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                liquidationBonus: 5,
+                debtCap: 200_000 ether
+            }));
+
+            address btc = address(0x66194F6C999b28965E0303a84cb8b797273B6b8b);
+            feeds[0] = address(0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43);
+            softPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: btc,
+                mode: Collateral.MODE_VOLATILE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                liquidationBonus: 5,
+                debtCap: 200_000 ether
+            }));
+
+
         }
         
     }

@@ -172,12 +172,12 @@ contract SoftPeg is AppManager, Security, Oracle {
         _afterBurn(rawAmount);
     }
 
-    function getHealthFactor(uint256 id, address user) external  returns (uint256){
+    function getHealthFactor(uint256 id, address user) external view returns (uint256){
         (uint256 hf, , , ) = _calcHealthFactorAndBasket(id, user, false);
         return hf;
     }
 
-    function _calcHealthFactorAndBasket(uint256 id, address user, bool calc) internal returns (
+    function _calcHealthFactorAndBasket(uint256 id, address user, bool calc) internal view returns (
         uint256 hf, 
         uint256 actualDebt,
         uint256[] memory colBasket, 

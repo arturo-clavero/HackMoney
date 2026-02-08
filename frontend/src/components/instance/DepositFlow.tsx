@@ -18,6 +18,8 @@ import {
 import type { TokenAmount } from "@lifi/sdk";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
 import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import { softPegAbi } from "@/contracts/abis/softPeg";
+
 import {
   getContractAddress,
   USDC_ADDRESSES,
@@ -40,7 +42,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "@/components/motion";
 
-type PegType = "hard" | "medium";
+type PegType = "hard" | "medium" | "soft";
 
 function getChainLabel(chainId: number): string {
   const labels: Record<number, string> = {
@@ -209,10 +211,12 @@ export function DepositFlow({
   const { caipAddress, address } = useAppKitAccount();
   const walletChainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
   const contractAddresses = getContractAddress(instanceChainId);
-  const contractAddress =
-    pegType === "medium"
-      ? contractAddresses?.mediumPeg
-      : contractAddresses?.hardPeg;
+ const contractAddress =
+  pegType === "medium"
+    ? contractAddresses?.mediumPeg
+    : pegType === "soft"
+    ? contractAddresses?.softPeg
+    : contractAddresses?.hardPeg;
   const { switchChainAsync } = useSwitchChain();
 
   // ─── Token & amount state ──────────────────────────────────────────────
@@ -272,6 +276,15 @@ export function DepositFlow({
   const {
     writeContractAsync: writeDepositAsync,
   } = useWriteContract();
+
+  const { data: softPegBalance, refetch: refetchSoftPeg } = useReadContract({
+  address: contractAddress,
+  abi: softPegAbi,
+  functionName: "getBalance", // replace with actual soft peg function
+  args: [appId, address as Address],
+  chainId: instanceChainId,
+  query: { enabled: pegType === "soft" && !!contractAddress && !!address, staleTime: 30_000 },
+});
 
   // ─── USDC balance on Arc ───────────────────────────────────────────────
   const { data: arcUsdcBalance } = useReadContract({

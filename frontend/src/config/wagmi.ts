@@ -37,6 +37,22 @@ const arcTestnet = defineChain({
   },
 });
 
+const sepolia = defineChain({
+  id: 11155111,
+  caipNetworkId: "eip155:11155111",
+  chainNamespace: "eip155",
+  name: "Sepolia",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+   default: {
+      http: [process.env.NEXT_PUBLIC_SEPOLIA_RPC || "https://eth-sepolia.example.com"],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Etherscan", url: "https://sepolia.etherscan.io" },
+  },
+});
+
 // Get projectId from https://cloud.reown.com
 export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
 
@@ -53,7 +69,8 @@ export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   optimism,
   polygon,
   base,
-  baseSepolia,
+  sepolia,
+  baseSepolia
 ];
 
 export const wagmiAdapter = new WagmiAdapter({
