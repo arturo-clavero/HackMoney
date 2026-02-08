@@ -46,7 +46,7 @@ contract TimelockTest is Test {
             abi.encodeWithSelector(SET_VALUE_SELECTOR, 123);
 
         vm.prank(oracle);
-        bytes32 txHash = timelock.queue(address(target), data, ORACLE_ROLE);
+        bytes32 txHash = timelock.queue(address(target), data);
 
         assertTrue(timelock.queuedTx(txHash));
     }
@@ -57,7 +57,7 @@ contract TimelockTest is Test {
 
         vm.prank(stranger);
         vm.expectRevert();
-        timelock.queue(address(target), data, ORACLE_ROLE);
+        timelock.queue(address(target), data);
     }
 
     function testInvalidSelectorReverts() public {
@@ -66,7 +66,7 @@ contract TimelockTest is Test {
 
         vm.prank(oracle);
         vm.expectRevert();
-        timelock.queue(address(target), data, ORACLE_ROLE);
+        timelock.queue(address(target), data);
     }
 
     function testExecuteAfterDelay() public {
@@ -74,7 +74,7 @@ contract TimelockTest is Test {
             abi.encodeWithSelector(SET_VALUE_SELECTOR, 777);
 
         vm.prank(oracle);
-        bytes32 txHash = timelock.queue(address(target), data, ORACLE_ROLE);
+        bytes32 txHash = timelock.queue(address(target), data);
 
         uint256 deadline = block.timestamp + 1 days;
 
@@ -90,7 +90,7 @@ contract TimelockTest is Test {
             abi.encodeWithSelector(SET_VALUE_SELECTOR, 777);
 
         vm.prank(oracle);
-        timelock.queue(address(target), data, ORACLE_ROLE);
+        timelock.queue(address(target), data);
 
         uint256 deadline = block.timestamp + 1 days;
 
@@ -104,7 +104,7 @@ contract TimelockTest is Test {
             abi.encodeWithSelector(SET_VALUE_SELECTOR, 777);
 
         vm.prank(oracle);
-        timelock.queue(address(target), data, ORACLE_ROLE);
+        timelock.queue(address(target), data);
 
         uint256 deadline = block.timestamp + 1 days;
 
@@ -118,7 +118,7 @@ contract TimelockTest is Test {
             abi.encodeWithSelector(SET_VALUE_SELECTOR, 123);
 
         vm.prank(oracle);
-        bytes32 txHash = timelock.queue(address(target), data, ORACLE_ROLE);
+        bytes32 txHash = timelock.queue(address(target), data);
 
         vm.prank(owner);
         timelock.cancel(address(target), data, block.timestamp + 1 days);
@@ -131,7 +131,7 @@ contract TimelockTest is Test {
             abi.encodeWithSelector(SET_VALUE_SELECTOR, 123);
 
         vm.prank(oracle);
-        timelock.queue(address(target), data, ORACLE_ROLE);
+        timelock.queue(address(target), data);
 
         vm.prank(stranger);
         vm.expectRevert();

@@ -10,7 +10,7 @@ import {SafeERC20} from "@openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/interfaces/IERC20.sol";
 
 import {RiskMath} from "../utils/RiskMathLib.sol";
-import {Roles} from "../utils/RoleLib.sol";
+import {Roles} from "../utils/RolesLib.sol";
 import {Error} from "../utils/ErrorLib.sol";
 import {IPrivateCoin} from "./../interfaces/IPrivateCoin.sol";
 

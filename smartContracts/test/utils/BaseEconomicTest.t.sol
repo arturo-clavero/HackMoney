@@ -235,7 +235,7 @@ abstract contract BaseEconomicTest is Test {
         }
     }
 
-    function _getPrice(address token) internal returns (uint256) {
+    function _getPrice(address token) internal view returns (uint256) {
         return peg.getPrice(token);
     }
 

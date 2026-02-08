@@ -3,6 +3,18 @@ pragma solidity ^0.8.20;
 
 
 library Roles {
+    
+     /**
+     * @dev OWNER
+     * Protocol owner with full administrative control.
+     *
+     * Expected to be a multisig or governance-controlled security module.
+     * Capabilities:
+     * - Grant and revoke all roles
+     * - Emergency intervention (via inheriting contracts)
+     */
+    uint256 constant public OWNER = 1 << 0;
+
     /**
      * @dev COLLATERAL_MANAGER
      * Manages protocol-wide collateral configuration.

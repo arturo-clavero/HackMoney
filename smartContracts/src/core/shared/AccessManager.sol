@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Error} from "../../utils/ErrorLib.sol";
+import {Roles} from "../../utils/RolesLib.sol";
+
 
 /**
  * @title AccessManager
@@ -27,15 +29,7 @@ abstract contract AccessManager {
     */
     bool private isSetUp = false;
     
-    /**
-     * @dev OWNER
-     * Protocol owner with full administrative control.
-     *
-     * Expected to be a multisig or governance-controlled security module.
-     * Capabilities:
-     * - Grant and revoke all roles
-     * - Emergency intervention (via inheriting contracts)
-     */
+   
     address private owner;
 
     /// @dev External timelock contract used for delayed execution
@@ -51,6 +45,7 @@ abstract contract AccessManager {
     constructor(address _owner, address _timelock) {
         owner = _owner;
         timelock = _timelock;
+        roles[_owner] |= Roles.OWNER;
     }
 
     /**
@@ -98,7 +93,7 @@ abstract contract AccessManager {
      * @param role Role bit to check
      * note used by timelock - do not delete
      */
-    function hasRole(address user, uint256 role) external view returns (bool) {
+    function hasRole(address user, uint256 role) public view returns (bool) {
         return roles[user] & role != 0;
     }
 

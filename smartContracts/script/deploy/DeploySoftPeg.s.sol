@@ -6,7 +6,9 @@ import {MediumPeg} from "../../../src/core/MediumPeg.sol";
 import {MediumPegAdapter} from "../../../src/adapters/MediumPegAdapter.sol";
 import "../../../src/Timelock.sol";
 import "../../../src/core/shared/CollateralManager.sol";
-import "../../../src/utils/CollateralLib.t.sol";
+import "../../../src/utils/CollateralLib.sol";
+import "../../../src/utils/RolesLib.sol";
+
 
 struct DeploymentInfo {
     address softPeg;
@@ -31,7 +33,7 @@ contract DeployMediumPeg is Script {
             deployer,
             address(timelock),
             5_000_000 ether,    //global debt cap
-            1_000 ether,        //mint cap per tx
+            1_000 ether        //mint cap per tx
         );
 
         softPegAdapter = new MediumPegAdapter(address(softPeg));
@@ -48,7 +50,7 @@ contract DeployMediumPeg is Script {
         info = DeploymentInfo(address(softPeg), address(softPegAdapter));
     }
 
-    function addGlobalCollateral(){
+    function addGlobalCollateral() internal {
 
         address[] memory feeds = new address[](1);
         uint256 chainId = block.chainid;
@@ -89,7 +91,7 @@ contract DeployMediumPeg is Script {
                 debtCap: 200_000 ether
             }));
 
-            address dai = address(0x776b6fc2ed15d6bb5fc32e0c89de68683118c62a);
+            address dai = address(0);
             feeds[0] = address(0);
             softPeg.updateGlobalCollateral(CollateralInput({
                 tokenAddress: dai,
@@ -143,36 +145,36 @@ contract DeployMediumPeg is Script {
         );
 
         timelock.setSelector(
-            softPeg.unpauseMint.selector
+            softPeg.unpauseMint.selector,
             CallConfig({
-                role: Roles.,
+                role: Roles.OWNER,
                 delay: 1 days,
                 gracePeriod: 2 days
             })
         );
 
         timelock.setSelector(
-            softPeg.unpauseWithdraw.selector
+            softPeg.unpauseWithdraw.selector,
             CallConfig({
-                role: Roles.,
+                role: Roles.OWNER,
                 delay: 1 days,
                 gracePeriod: 2 days
             })
         );
         
         timelock.setSelector(
-            softPeg.updateGlobalDebtCap.selector
+            softPeg.updateGlobalDebtCap.selector,
             CallConfig({
-                role: Roles.,
+                role: Roles.GOVERNOR,
                 delay: 1 days,
                 gracePeriod: 3 days
             })
         );
         
         timelock.setSelector(
-            softPeg.updateMintCapPerTx.selector
+            softPeg.updateMintCapPerTx.selector,
             CallConfig({
-                role: Roles.,
+                role: Roles.GOVERNOR,
                 delay: 1 days,
                 gracePeriod: 3 days
             })

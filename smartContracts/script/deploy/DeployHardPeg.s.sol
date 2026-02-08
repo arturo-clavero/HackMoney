@@ -7,7 +7,7 @@ import {HardPegAdapter} from "../../../src/adapters/HardPegAdapter.sol";
 import "../../../src/Timelock.sol";
 import "../../../src/core/shared/CollateralManager.sol";
 import "../../../src/utils/CollateralLib.sol";
-import "../../../src/utils/RoleLib.sol";
+import "../../../src/utils/RolesLib.sol";
 
 struct DeploymentInfo {
     address hardPeg;
@@ -144,7 +144,7 @@ contract DeployHardPeg is Script {
         timelock.setSelector(
             hardPeg.unpauseMint.selector,
             CallConfig({
-                role: Roles.GOVERNOR,
+                role: Roles.OWNER,
                 delay: 1 days,
                 gracePeriod: 2 days
             })
@@ -153,7 +153,7 @@ contract DeployHardPeg is Script {
         timelock.setSelector(
             hardPeg.unpauseWithdraw.selector,
             CallConfig({
-                role: Roles.GOVERNOR,
+                role: Roles.OWNER,
                 delay: 1 days,
                 gracePeriod: 2 days
             })

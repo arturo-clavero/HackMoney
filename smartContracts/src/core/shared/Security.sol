@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {AccessManager} from "./AccessManager.sol";
-import "../../utils/RoleLib.sol";
+import "../../utils/RolesLib.sol";
 /**
  * @title pausing & governance control contract
  * @notice Manages protocol-level access control and feature-level pausing for minting and withdrawals.
@@ -30,26 +30,32 @@ import "../../utils/RoleLib.sol";
 //Deliverables : function is mint allowed for this user right now ? 
 
 abstract contract Security is AccessManager{
+
+    //keccak256("stablecoin.security.txMintAmount")
+    uint256 private constant TX_MINT_SLOT = 0x691504748c91001246bb5fa8225a65ae8ee6f7c502be8ed2c8dc5434e453819c;
     bool private mintPaused;
     bool private withdrawPaused;
+    
     uint256 private globalDebtCap;
-    uint256 private mintCapPerTransaction;
-    uint256 public totalDebt; // total across the protocol
+    uint256 private txMintCap;
+    uint256 public totalDebt;
 
     event MintPaused(address indexed by);
-    // event MintUnpaused(address indexed by);
+    event MintUnpaused(address indexed by);
     event WithdrawPaused(address indexed by);
-    // event WithdrawUnpaused(address indexed by);
-    // event globalDebtCapUpdated(uint256 oldCap, uint256 newCap);
-    // event mintCapPerTransactionUpdated(uint256 oldCap, uint256 newCap);
+    event WithdrawUnpaused(address indexed by);
+    event GlobalDebtCapUpdated(uint256 oldCap, uint256 newCap);
+    event TxMintCapUpdated(uint256 oldCap, uint256 newCap);
 
     error AlreadyPaused();
     error AlreadyUnpaused();
     error InvalidCapValue();
     error MintIsPaused();
+    error WithdrawIsPaused();
     error InvalidAmount();
     error CapExceeded();
     error GlobalCapExceeded();
+    error InvalidAccess();
 
     constructor (
         uint256 _globalDebtCap, 
@@ -59,32 +65,49 @@ abstract contract Security is AccessManager{
         if(_mintCapPerTx == 0) revert InvalidCapValue();
         if (_mintCapPerTx > _globalDebtCap) revert InvalidCapValue();
         globalDebtCap = _globalDebtCap;
-        mintCapPerTransaction = _mintCapPerTx;
+        txMintCap = _mintCapPerTx;
     }
 
-    modifier mintAllowed() {
-        require (mintPaused == false, "Mint is not allowed");
-        _;
-
-    }
-    modifier withdrawAllowed() {
-        require(withdrawPaused == false, "Withdraw is not allowed");
-        _;
-    }
 
      /// @notice security gate for the peg
-    function beforeMint(uint256 valueAmount) internal {
+    function _beforeMint(uint256 valueAmount) internal {
         if (mintPaused) revert MintIsPaused();
         if (valueAmount == 0) revert InvalidAmount();
-        if (valueAmount > mintCapPerTransaction)
-            revert CapExceeded();
+        _checkCurrentTx(valueAmount);
         uint256 newDebt = totalDebt + valueAmount;
         if (newDebt > globalDebtCap)
             revert GlobalCapExceeded();
         totalDebt = newDebt;
     }
+
+    function _checkCurrentTx(uint256 valueAmount) private {
+        if (hasRole(msg.sender, Roles.LIQUIDATOR)) return;
+        uint256 txMintAmount;
+        assembly {
+            txMintAmount := tload(TX_MINT_SLOT)
+        }
+        txMintAmount += valueAmount;
+        if (txMintAmount > txMintCap)
+            revert CapExceeded();
+        assembly {
+            tstore(TX_MINT_SLOT, txMintAmount)
+        }
+    }
+
+    function _afterBurn(uint256 amount) internal {
+        if (amount == 0) revert InvalidAmount();
+        totalDebt -= amount;
+    }
+
+    function _beforeWithdraw() internal view {
+        if (withdrawPaused) revert WithdrawIsPaused();
+    }
+
+
     /// @notice Pauses minting. Can only be called by the owner.
-    function pauseMint() external onlyRole(Roles.GOVERNOR) {
+    function pauseMint() external {
+        if (! hasRole(msg.sender, Roles.GOVERNOR) && ! hasRole(msg.sender, Roles.OWNER))
+            revert InvalidAccess();
         if (mintPaused == true) revert AlreadyPaused();
         mintPaused = true;
         emit MintPaused(msg.sender);
@@ -94,11 +117,13 @@ abstract contract Security is AccessManager{
     function unpauseMint() external onlyTimeLock {
         if (!mintPaused) revert AlreadyUnpaused();
         mintPaused = false;
-        // emit MintUnpaused(msg.sender);
+        emit MintUnpaused(msg.sender);
     }
 
     /// @notice Pauses withdrawals. Can only be called by the owner.
-    function pauseWithdraw() external onlyRole(Roles.GOVERNOR) {
+    function pauseWithdraw() external {
+        if (! hasRole(msg.sender, Roles.GOVERNOR) && ! hasRole(msg.sender, Roles.OWNER))
+            revert InvalidAccess();
         if (withdrawPaused) revert AlreadyPaused();
         withdrawPaused = true;
         emit WithdrawPaused(msg.sender);
@@ -108,22 +133,23 @@ abstract contract Security is AccessManager{
     function unpauseWithdraw() external onlyTimeLock {
         if (!withdrawPaused) revert AlreadyUnpaused();
         withdrawPaused = false;
-        // emit WithdrawUnpaused(msg.sender);
+        emit WithdrawUnpaused(msg.sender);
     }
 
     ///  @notice Updates the global debt cap. Requires timelock governance.
     function updateGlobalDebtCap(uint256 newGlobalDebtCap) external onlyTimeLock {
         if (newGlobalDebtCap == 0) revert InvalidCapValue();
-        if (mintCapPerTransaction > newGlobalDebtCap) revert InvalidCapValue();
-        // uint256 oldCap = globalDebtCap;
+        if (newGlobalDebtCap <= totalDebt) revert InvalidCapValue();
+        uint256 oldCap = globalDebtCap;
         globalDebtCap = newGlobalDebtCap;
-        // emit globalDebtCapUpdated(oldCap, newGlobalDebtCap);
+        emit GlobalDebtCapUpdated(oldCap, newGlobalDebtCap);
     }
+
     /// @notice Updates the maximum mint per transaction. Can only be called by governance timelock.
-    function updateMintCapPerTx(uint256 newMintCapPerTransaction) external onlyTimeLock {
-        if (newMintCapPerTransaction == 0) revert InvalidCapValue();
-        // uint256 oldCap = mintCapPerTransaction;
-        mintCapPerTransaction = newMintCapPerTransaction;
-        // emit mintCapPerTransactionUpdated(oldCap, newMintCapPerTransaction);
+    function updateMintCapPerTx(uint256 newTxMintCap) external onlyTimeLock {
+        if (newTxMintCap == 0) revert InvalidCapValue();
+        uint256 oldCap = txMintCap;
+        txMintCap = newTxMintCap;
+        emit TxMintCapUpdated(oldCap, newTxMintCap);
     }
 }

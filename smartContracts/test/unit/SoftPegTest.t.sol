@@ -66,11 +66,6 @@ contract SoftPegUnitTest is BaseEconomicTest {
 
 
     }
-
-    function testX_() public {
-        assert(1 == 1);
-    }
-
 //DEPOSITS:
     function testDeposit_basic() public {
         vm.startPrank(user);
@@ -280,7 +275,6 @@ contract SoftPegUnitTest is BaseEconomicTest {
         peg.deposit(ID, address(token6), _raw(100, address(token6)));
         peg.deposit(ID, address(token8), _raw(200, address(token8)));
 
-        uint256 creditBefore = peg.getUsersMintCredit(ID, minter);
         peg.mint(ID, user, type(uint256).max);
         uint256 creditAfter = peg.getUsersMintCredit(ID, minter);
         assertEq(creditAfter, 0);
@@ -350,7 +344,6 @@ contract SoftPegUnitTest is BaseEconomicTest {
         uint256 maxCredit = peg.getUsersMintCredit(newAppID, minter);
 
         peg.mint(newAppID, minter, type(uint256).max);
-        uint256 debtSharesBefore = peg.getUserDebtShares(newAppID, minter);
         // repay full debt
         peg.repay(newAppID, maxCredit * 1e18);
 
@@ -386,8 +379,6 @@ contract SoftPegUnitTest is BaseEconomicTest {
         peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
         uint256 maxCredit = peg.getUsersMintCredit(newAppID, minter);
         peg.mint(newAppID, minter, type(uint256).max);
-
-        uint256 debtShares = peg.getUserDebtShares(newAppID, minter);
 
         vm.expectRevert();
         peg.repay(newAppID, (maxCredit + 1) * 1e18);
