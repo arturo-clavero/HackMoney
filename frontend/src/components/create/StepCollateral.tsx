@@ -1,24 +1,87 @@
 "use client";
 
+import { useEffect } from "react";
 import { useWizard } from "./WizardContext";
 import { useReadContract, useReadContracts } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
-import { getContractAddress } from "@/contracts/addresses";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import {
+  getContractAddress,
+  ARC_CHAIN_ID,
+  ARBITRUM_CHAIN_ID,
+  ARBITRUM_USDC,
+  WA_ARB_USDC_VAULT,
+} from "@/contracts/addresses";
 import { type Address, formatUnits, erc20Abi } from "viem";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const ARC_CHAIN_ID = 5042002;
-
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+function YieldPegCollateral() {
+  const { setState } = useWizard();
+
+  // Auto-select USDC as underlying for the newInstance tokens array
+  useEffect(() => {
+    setState({ selectedCollateral: [ARBITRUM_USDC] });
+  }, [setState]);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Alert>
+        <AlertDescription>
+          Yield Peg instances use an ERC-4626 vault as collateral. Deposited
+          assets earn yield while backing your stablecoin. Deploys on Arbitrum.
+        </AlertDescription>
+      </Alert>
+
+      <Card className="border-primary bg-primary/5">
+        <CardContent className="flex items-center gap-4 p-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+            waU
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2">
+              <p className="font-semibold">waArbUSDCn</p>
+              <p className="text-sm text-muted-foreground truncate">
+                Aave Arbitrum USDC Vault
+              </p>
+            </div>
+            <div className="flex gap-3 mt-1 text-xs text-muted-foreground/60">
+              <span>ERC-4626</span>
+              <span>Underlying: USDC</span>
+              <span className="font-mono">
+                {truncateAddress(WA_ARB_USDC_VAULT)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <p className="text-sm text-muted-foreground">
+        Your stablecoin will be backed by{" "}
+        <span className="font-medium text-foreground">
+          Aave waArbUSDCn vault shares
+        </span>
+        . Depositors can supply any token from any chain — it will be
+        automatically swapped into vault shares via LiFi.
+      </p>
+    </div>
+  );
 }
 
 export function StepCollateral() {
   const { state, setState } = useWizard();
 
-  const addresses = getContractAddress(ARC_CHAIN_ID);
+  if (state.pegStyle === "yield") {
+    return <YieldPegCollateral />;
+  }
+
+  const chainId = ARC_CHAIN_ID;
+  const addresses = getContractAddress(chainId);
   const contractAddress = addresses?.hardPeg;
 
   // Fetch registered collateral addresses from protocol
@@ -30,7 +93,7 @@ export function StepCollateral() {
     address: contractAddress,
     abi: hardPegAbi,
     functionName: "getGlobalCollateralList",
-    chainId: ARC_CHAIN_ID,
+    chainId,
     query: { enabled: !!contractAddress },
   });
 
@@ -41,7 +104,7 @@ export function StepCollateral() {
       abi: hardPegAbi,
       functionName: "getGlobalCollateral" as const,
       args: [token] as const,
-      chainId: ARC_CHAIN_ID,
+      chainId,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
@@ -52,7 +115,7 @@ export function StepCollateral() {
       address: token,
       abi: erc20Abi,
       functionName: "name" as const,
-      chainId: ARC_CHAIN_ID,
+      chainId,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
@@ -63,7 +126,7 @@ export function StepCollateral() {
       address: token,
       abi: erc20Abi,
       functionName: "symbol" as const,
-      chainId: ARC_CHAIN_ID,
+      chainId,
     })),
     query: { enabled: !!collateralList && collateralList.length > 0 },
   });
@@ -97,11 +160,9 @@ export function StepCollateral() {
     <div className="flex flex-col gap-6">
       <Alert>
         <AlertDescription>
-          {state.pegStyle === "hard"
-            ? "Collateral backs your stablecoin 1:1. Every coin minted must have an equal value of collateral deposited. Only stablecoins are available as collateral for this peg type."
-            : state.pegStyle === "yield"
-              ? "Collateral is yield-bearing. Your backing assets earn yield while sitting behind your stablecoin."
-              : "Collateral is volatile. Overcollateralization is required and positions carry liquidation risk."}
+          Collateral backs your stablecoin 1:1. Every coin minted must have an
+          equal value of collateral deposited. Only stablecoins are available as
+          collateral for this peg type.
         </AlertDescription>
       </Alert>
 
@@ -126,7 +187,6 @@ export function StepCollateral() {
               onClick={() => toggleCollateral(token)}
             >
               <CardContent className="flex items-center gap-4 p-4">
-                {/* Token icon placeholder */}
                 <div
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
                     isSelected
@@ -137,7 +197,6 @@ export function StepCollateral() {
                   {(symbol || "?").slice(0, 3)}
                 </div>
 
-                {/* Token info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
                     <p className="font-semibold">{displaySymbol}</p>
@@ -156,7 +215,6 @@ export function StepCollateral() {
                   </div>
                 </div>
 
-                {/* Checkbox */}
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={() => toggleCollateral(token)}

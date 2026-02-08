@@ -4,17 +4,21 @@ import Link from "next/link";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import {
   useAccount,
-  useWatchContractEvent,
   useReadContracts,
-  usePublicClient,
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
-import { getContractAddress } from "@/contracts/addresses";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import {
+  getContractAddress,
+  ARC_CHAIN_ID,
+  ARBITRUM_CHAIN_ID,
+} from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   PageTransition,
   StaggerContainer,
@@ -22,109 +26,98 @@ import {
   motion,
 } from "@/components/motion";
 
-const ARC_CHAIN_ID = 5042002;
-
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+type PegType = "hard" | "medium";
+
 interface Instance {
   id: bigint;
   coin: Address;
+  pegType: PegType;
+  chainId: number;
 }
+
+interface PegSource {
+  chainId: number;
+  pegType: PegType;
+  contractAddress: Address;
+  abi: typeof hardPegAbi | typeof mediumPegAbi;
+}
+
+const MAX_APP_ID = 10;
+
+const PEG_SOURCES = ([
+  {
+    chainId: ARC_CHAIN_ID,
+    pegType: "hard" as PegType,
+    contractAddress: getContractAddress(ARC_CHAIN_ID)?.hardPeg as Address,
+    abi: hardPegAbi,
+  },
+  {
+    chainId: ARBITRUM_CHAIN_ID,
+    pegType: "medium" as PegType,
+    contractAddress: getContractAddress(ARBITRUM_CHAIN_ID)?.mediumPeg as Address,
+    abi: mediumPegAbi,
+  },
+] as PegSource[]).filter((s) => !!s.contractAddress);
+
+// Build multicall batch: getAppConfig(1..MAX_APP_ID) for each peg source
+const appConfigCalls = PEG_SOURCES.flatMap((source) =>
+  Array.from({ length: MAX_APP_ID }, (_, i) => ({
+    address: source.contractAddress,
+    abi: source.abi,
+    functionName: "getAppConfig" as const,
+    args: [BigInt(i + 1)] as const,
+    chainId: source.chainId,
+    // metadata for filtering later
+    _pegType: source.pegType,
+    _chainId: source.chainId,
+    _id: BigInt(i + 1),
+  }))
+);
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 function InstancesList() {
   const { address } = useAppKitAccount();
-  const addresses = getContractAddress(ARC_CHAIN_ID);
-  const contractAddress = addresses?.hardPeg;
 
-  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
-  const [instances, setInstances] = useState<Instance[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  // One-time fetch of historical events.
-  // Some RPCs (e.g. Arc testnet) limit eth_getLogs to 10k blocks, so we
-  // paginate in chunks from the deploy block to the current block.
-  useEffect(() => {
-    if (!contractAddress || !address || !publicClient || !addresses) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const currentBlock = await publicClient.getBlockNumber();
-        const deployBlock = addresses.deployBlock;
-        const CHUNK = BigInt(9999);
-        const allLogs: typeof instances = [];
-
-        for (
-          let from = deployBlock;
-          from <= currentBlock;
-          from += CHUNK + BigInt(1)
-        ) {
-          if (cancelled) return;
-          const to =
-            from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
-          const logs = await publicClient.getContractEvents({
-            address: contractAddress,
-            abi: hardPegAbi,
-            eventName: "RegisteredApp",
-            args: { owner: address as Address },
-            fromBlock: from,
-            toBlock: to,
-          });
-          for (const log of logs) {
-            allLogs.push({
-              id: log.args.id!,
-              coin: log.args.coin! as Address,
-            });
-          }
-        }
-
-        if (!cancelled) {
-          setInstances(allLogs);
-          setLoaded(true);
-        }
-      } catch {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [contractAddress, address, publicClient, addresses]);
-
-  // Watch for NEW events while the page is open
-  useWatchContractEvent({
-    address: contractAddress,
-    abi: hardPegAbi,
-    eventName: "RegisteredApp",
-    args: { owner: address as Address },
-    onLogs(logs) {
-      const newInstances = logs.map((log) => ({
-        id: log.args.id!,
-        coin: log.args.coin! as Address,
-      }));
-      setInstances((prev) => {
-        const existingIds = new Set(prev.map((i) => i.id.toString()));
-        const unique = newInstances.filter(
-          (i) => !existingIds.has(i.id.toString())
-        );
-        return unique.length > 0 ? [...prev, ...unique] : prev;
-      });
-    },
-    enabled: !!contractAddress && !!address,
+  // Single multicall: reads getAppConfig(1..50) from both contracts
+  const { data: appConfigs, isLoading } = useReadContracts({
+    contracts: appConfigCalls.map(({ _pegType, _chainId, _id, ...call }) => call),
+    query: { enabled: !!address, staleTime: 60_000 },
   });
 
-  // Read name() and symbol() for each coin
+  // Filter to instances owned by connected wallet
+  const instances = useMemo(() => {
+    if (!appConfigs || !address) return [];
+    const result: Instance[] = [];
+    for (let i = 0; i < appConfigCalls.length; i++) {
+      const config = appConfigs[i];
+      if (config.status !== "success" || !config.result) continue;
+      const { owner, coin } = config.result as { owner: Address; coin: Address; tokensAllowed: bigint };
+      if (owner === ZERO_ADDRESS) continue;
+      if (owner.toLowerCase() !== address.toLowerCase()) continue;
+      result.push({
+        id: appConfigCalls[i]._id,
+        coin: coin as Address,
+        pegType: appConfigCalls[i]._pegType,
+        chainId: appConfigCalls[i]._chainId,
+      });
+    }
+    return result;
+  }, [appConfigs, address]);
+
+  // Read name() and symbol() for each discovered coin
   const coinNames = useReadContracts({
     contracts: instances.map((inst) => ({
       address: inst.coin,
       abi: erc20Abi,
       functionName: "name" as const,
-      chainId: ARC_CHAIN_ID,
+      chainId: inst.chainId,
     })),
-    query: { enabled: instances.length > 0 },
+    query: { enabled: instances.length > 0, staleTime: 60_000 },
   });
 
   const coinSymbols = useReadContracts({
@@ -132,12 +125,12 @@ function InstancesList() {
       address: inst.coin,
       abi: erc20Abi,
       functionName: "symbol" as const,
-      chainId: ARC_CHAIN_ID,
+      chainId: inst.chainId,
     })),
-    query: { enabled: instances.length > 0 },
+    query: { enabled: instances.length > 0, staleTime: 60_000 },
   });
 
-  if (!loaded) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-3 py-12">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
@@ -166,10 +159,15 @@ function InstancesList() {
       {instances.map((inst, i) => {
         const name = coinNames.data?.[i]?.result ?? "Loading...";
         const symbol = coinSymbols.data?.[i]?.result ?? "...";
+        const pegLabel = inst.pegType === "hard" ? "Hard Peg" : "Yield Peg";
+        const chainLabel =
+          inst.chainId === ARC_CHAIN_ID ? "Arc Testnet" : "Arbitrum";
 
         return (
-          <StaggerItem key={inst.id.toString()}>
-            <Link href={`/instance/${inst.id.toString()}`}>
+          <StaggerItem key={`${inst.pegType}-${inst.chainId}-${inst.id.toString()}`}>
+            <Link
+              href={`/instance/${inst.id.toString()}?peg=${inst.pegType}&chain=${inst.chainId}`}
+            >
               <motion.div
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
@@ -192,6 +190,18 @@ function InstancesList() {
                           {truncateAddress(inst.coin)}
                         </span>
                       </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge
+                        variant={
+                          inst.pegType === "hard" ? "default" : "secondary"
+                        }
+                      >
+                        {pegLabel}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {chainLabel}
+                      </span>
                     </div>
                   </CardContent>
                 </Card>

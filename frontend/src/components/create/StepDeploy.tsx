@@ -9,7 +9,13 @@ import {
   useSwitchChain,
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
-import { getContractAddress, ARC_CHAIN_ID } from "@/contracts/addresses";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import {
+  getContractAddress,
+  ARC_CHAIN_ID,
+  ARBITRUM_CHAIN_ID,
+  WA_ARB_USDC_VAULT,
+} from "@/contracts/addresses";
 import { Actions } from "@/contracts/actions";
 import { decodeEventLog } from "viem";
 import { useEffect, useState } from "react";
@@ -26,15 +32,21 @@ function truncateAddress(addr: string) {
 export function StepDeploy() {
   const { state, setStep } = useWizard();
   const { caipAddress } = useAppKitAccount();
-  const chainId = caipAddress
+  const walletChainId = caipAddress
     ? parseInt(caipAddress.split(":")[1])
     : undefined;
 
-  const addresses = chainId ? getContractAddress(chainId) : null;
-  const contractAddress = addresses?.hardPeg;
+  const isYield = state.pegStyle === "yield";
+  const targetChainId = isYield ? ARBITRUM_CHAIN_ID : ARC_CHAIN_ID;
+  const addresses = getContractAddress(targetChainId);
+  const contractAddress = isYield ? addresses?.mediumPeg : addresses?.hardPeg;
+  const abi = isYield ? mediumPegAbi : hardPegAbi;
 
   const [appId, setAppId] = useState<bigint | null>(null);
   const [coinAddress, setCoinAddress] = useState<string | null>(null);
+  const [settingVault, setSettingVault] = useState(false);
+  const [vaultSet, setVaultSet] = useState(false);
+  const [vaultError, setVaultError] = useState<string | null>(null);
 
   const appActions = Actions.MINT | Actions.HOLD;
   const userActions =
@@ -43,10 +55,11 @@ export function StepDeploy() {
     (state.usersCanMint ? Actions.MINT : BigInt(0));
 
   const { switchChain } = useSwitchChain();
-  const wrongNetwork = !contractAddress;
+  const wrongNetwork = !contractAddress || walletChainId !== targetChainId;
 
   const {
     writeContract,
+    writeContractAsync,
     data: txHash,
     isPending,
     error: writeError,
@@ -59,12 +72,13 @@ export function StepDeploy() {
     data: receipt,
   } = useWaitForTransactionReceipt({ hash: txHash });
 
+  // Decode RegisteredApp event from receipt
   useEffect(() => {
     if (!receipt?.logs) return;
     for (const log of receipt.logs) {
       try {
         const decoded = decodeEventLog({
-          abi: hardPegAbi,
+          abi,
           data: log.data,
           topics: log.topics,
         });
@@ -76,13 +90,42 @@ export function StepDeploy() {
         // not the event we're looking for
       }
     }
-  }, [receipt]);
+  }, [receipt, abi]);
+
+  // For yield peg: call setVault after instance creation
+  const {
+    writeContractAsync: writeSetVaultAsync,
+  } = useWriteContract();
+
+  useEffect(() => {
+    if (!isYield || appId === null || vaultSet || settingVault) return;
+
+    (async () => {
+      setSettingVault(true);
+      try {
+        await writeSetVaultAsync({
+          address: contractAddress!,
+          abi: mediumPegAbi,
+          functionName: "setVault",
+          args: [appId, WA_ARB_USDC_VAULT],
+          chainId: ARBITRUM_CHAIN_ID,
+        });
+        setVaultSet(true);
+      } catch (err) {
+        setVaultError(
+          err instanceof Error ? err.message : "Failed to set vault"
+        );
+      } finally {
+        setSettingVault(false);
+      }
+    })();
+  }, [isYield, appId, contractAddress, vaultSet, settingVault, writeSetVaultAsync]);
 
   const deploy = () => {
     if (!contractAddress) return;
     writeContract({
       address: contractAddress,
-      abi: hardPegAbi,
+      abi,
       functionName: "newInstance",
       args: [
         {
@@ -94,13 +137,20 @@ export function StepDeploy() {
           tokens: state.selectedCollateral,
         },
       ],
+      chainId: targetChainId,
     });
   };
 
   const error = writeError || receiptError;
+  const chainLabel = isYield ? "Arbitrum" : "Arc Testnet";
+
+  // For yield peg, wait for both instance creation and vault setup
+  const fullyDone = isYield
+    ? isSuccess && appId !== null && vaultSet
+    : isSuccess && appId !== null;
 
   // Success state
-  if (isSuccess && appId !== null) {
+  if (fullyDone) {
     return (
       <div className="flex flex-col items-center gap-6 py-8">
         <motion.div
@@ -116,7 +166,7 @@ export function StepDeploy() {
           <CardContent className="px-5 py-0">
             <div className="flex justify-between py-3">
               <span className="text-sm text-muted-foreground">App ID</span>
-              <span className="font-mono">#{appId.toString()}</span>
+              <span className="font-mono">#{appId!.toString()}</span>
             </div>
             <Separator />
             <div className="flex justify-between py-3">
@@ -134,6 +184,22 @@ export function StepDeploy() {
                 {state.tokenName} ({state.tokenSymbol})
               </span>
             </div>
+            <Separator />
+            <div className="flex justify-between py-3">
+              <span className="text-sm text-muted-foreground">Chain</span>
+              <span>{chainLabel}</span>
+            </div>
+            {isYield && (
+              <>
+                <Separator />
+                <div className="flex justify-between py-3">
+                  <span className="text-sm text-muted-foreground">Vault</span>
+                  <span className="font-mono text-sm">
+                    {truncateAddress(WA_ARB_USDC_VAULT)}
+                  </span>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
         <div className="flex gap-3">
@@ -145,12 +211,58 @@ export function StepDeploy() {
             onClick={() => {
               setAppId(null);
               setCoinAddress(null);
+              setVaultSet(false);
+              setVaultError(null);
               setStep(0);
             }}
           >
             Create Another
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  // Vault setup in progress
+  if (isSuccess && appId !== null && isYield && !vaultSet) {
+    return (
+      <div className="flex flex-col items-center gap-6 py-8">
+        {vaultError ? (
+          <>
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 text-3xl">
+              !
+            </div>
+            <h2 className="text-xl font-bold">Vault Setup Failed</h2>
+            <Alert variant="destructive" className="max-w-md">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>
+                {vaultError.length > 200
+                  ? vaultError.slice(0, 200) + "..."
+                  : vaultError}
+              </AlertDescription>
+            </Alert>
+            <Button
+              onClick={() => {
+                setVaultError(null);
+                setSettingVault(false);
+              }}
+            >
+              Retry Set Vault
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-muted border-t-primary" />
+            <h2 className="text-xl font-bold">
+              {settingVault
+                ? "Setting up vault..."
+                : "Confirm vault setup in wallet..."}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Configuring the Aave waArbUSDCn vault for your instance.
+            </p>
+          </>
+        )}
       </div>
     );
   }
@@ -201,15 +313,15 @@ export function StepDeploy() {
             <span className="font-medium text-foreground">
               {state.tokenName} ({state.tokenSymbol})
             </span>{" "}
-            token contract.
+            token contract on {chainLabel}.
           </p>
           {wrongNetwork ? (
             <Button
               size="lg"
               variant="secondary"
-              onClick={() => switchChain({ chainId: ARC_CHAIN_ID })}
+              onClick={() => switchChain({ chainId: targetChainId })}
             >
-              Switch to Arc Testnet
+              Switch to {chainLabel}
             </Button>
           ) : (
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>

@@ -4,8 +4,13 @@ import { use } from "react";
 import Link from "next/link";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import { useReadContract, useReadContracts } from "wagmi";
+import { useSearchParams } from "next/navigation";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
-import { getContractAddress } from "@/contracts/addresses";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import {
+  getContractAddress,
+  ARC_CHAIN_ID,
+} from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
 import { InstanceOverview } from "@/components/instance/InstanceOverview";
 import { UserManagement } from "@/components/instance/UserManagement";
@@ -13,6 +18,8 @@ import { VaultOperations } from "@/components/instance/VaultOperations";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PageTransition, motion } from "@/components/motion";
+
+type PegType = "hard" | "medium";
 
 export default function InstancePage({
   params,
@@ -22,11 +29,15 @@ export default function InstancePage({
   const { id } = use(params);
   const { open } = useAppKit();
   const { isConnected } = useAppKitAccount();
+  const searchParams = useSearchParams();
 
-  // Always read from Arc testnet regardless of wallet chain
-  const ARC_CHAIN_ID = 5042002;
-  const addresses = getContractAddress(ARC_CHAIN_ID);
-  const contractAddress = addresses?.hardPeg;
+  const pegType = (searchParams.get("peg") ?? "hard") as PegType;
+  const chainId = Number(searchParams.get("chain") ?? ARC_CHAIN_ID);
+
+  const addresses = getContractAddress(chainId);
+  const contractAddress =
+    pegType === "medium" ? addresses?.mediumPeg : addresses?.hardPeg;
+  const abi = pegType === "medium" ? mediumPegAbi : hardPegAbi;
 
   let appId: bigint | undefined;
   try {
@@ -46,11 +57,11 @@ export default function InstancePage({
 
   const { data: appConfig } = useReadContract({
     address: contractAddress,
-    abi: hardPegAbi,
+    abi,
     functionName: "getAppConfig",
     args: [appId!],
-    chainId: ARC_CHAIN_ID,
-    query: { enabled: !!contractAddress && appId !== undefined },
+    chainId,
+    query: { enabled: !!contractAddress && appId !== undefined, staleTime: 30_000 },
   });
 
   const coinAddress = appConfig?.coin as Address | undefined;
@@ -58,11 +69,11 @@ export default function InstancePage({
   const coinReads = useReadContracts({
     contracts: coinAddress
       ? [
-          { address: coinAddress, abi: erc20Abi, functionName: "name" as const, chainId: ARC_CHAIN_ID },
-          { address: coinAddress, abi: erc20Abi, functionName: "symbol" as const, chainId: ARC_CHAIN_ID },
+          { address: coinAddress, abi: erc20Abi, functionName: "name" as const, chainId },
+          { address: coinAddress, abi: erc20Abi, functionName: "symbol" as const, chainId },
         ]
       : [],
-    query: { enabled: !!coinAddress },
+    query: { enabled: !!coinAddress, staleTime: 30_000 },
   });
 
   const coinName = coinReads.data?.[0]?.result as string | undefined;
@@ -97,9 +108,9 @@ export default function InstancePage({
           <h1 className="text-2xl font-bold">{title}</h1>
         </div>
         <div className="flex flex-col gap-8">
-          <InstanceOverview appId={appId} />
-          <UserManagement appId={appId} />
-          <VaultOperations appId={appId} />
+          <InstanceOverview appId={appId} pegType={pegType} chainId={chainId} />
+          <UserManagement appId={appId} pegType={pegType} chainId={chainId} />
+          <VaultOperations appId={appId} pegType={pegType} chainId={chainId} />
         </div>
       </div>
     </PageTransition>
