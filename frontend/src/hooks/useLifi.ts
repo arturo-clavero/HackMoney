@@ -203,7 +203,8 @@ export interface QuoteResult {
   toAmountUSD: string;
   gasCostUSD: string | undefined;
   executionDuration: number; // seconds
-  destinationChainId: number; // which chain the USDC lands on
+  destinationChainId: number; // which mainnet chain the LiFi swap targets
+  bridgeTestnetChainId: number; // corresponding testnet chain for Circle bridge
   routesChecked: number; // how many destinations were compared
 }
 
@@ -219,7 +220,7 @@ export function useLifiQuote() {
       fromToken: string;
       fromAmount: string;
       fromAddress: string;
-      destinations: { toChain: number; toToken: string }[];
+      destinations: { toChain: number; toToken: string; bridgeTestnetChainId: number }[];
     }) => {
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -242,14 +243,14 @@ export function useLifiQuote() {
                 fromAddress: params.fromAddress,
               },
               { signal: controller.signal }
-            ).then((step) => ({ step, chainId: dest.toChain }))
+            ).then((step) => ({ step, chainId: dest.toChain, bridgeTestnetChainId: dest.bridgeTestnetChainId }))
           )
         );
 
         if (controller.signal.aborted) return;
 
         const fulfilled = results.filter(
-          (r): r is PromiseFulfilledResult<{ step: LiFiStep; chainId: number }> =>
+          (r): r is PromiseFulfilledResult<{ step: LiFiStep; chainId: number; bridgeTestnetChainId: number }> =>
             r.status === "fulfilled"
         );
 
@@ -280,6 +281,7 @@ export function useLifiQuote() {
             .toFixed(2),
           executionDuration: best.step.estimate?.executionDuration ?? 0,
           destinationChainId: best.chainId,
+          bridgeTestnetChainId: best.bridgeTestnetChainId,
           routesChecked: params.destinations.length,
         });
       } catch (err) {

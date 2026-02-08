@@ -256,6 +256,18 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     query: { enabled: !!address },
   });
 
+  // ─── USDC balance on Base Sepolia ───────────────────────────────────
+  const BASE_SEPOLIA_CHAIN_ID = 84532;
+  const BASE_SEPOLIA_USDC = USDC_ADDRESSES[BASE_SEPOLIA_CHAIN_ID];
+  const { data: baseSepoliaUsdcBalance } = useReadContract({
+    address: BASE_SEPOLIA_USDC,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [address as Address],
+    chainId: BASE_SEPOLIA_CHAIN_ID,
+    query: { enabled: !!address },
+  });
+
   // ─── Vault balance ────────────────────────────────────────────────────
   const { data: vaultBalance, refetch: refetchVault } = useReadContract({
     address: contractAddress,
@@ -276,6 +288,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     const testnetChains = [
       { id: ARC_CHAIN_ID, name: "Arc Testnet", logoURI: "" },
       { id: ARB_SEPOLIA_CHAIN_ID, name: "Arbitrum Sepolia", logoURI: "" },
+      { id: BASE_SEPOLIA_CHAIN_ID, name: "Base Sepolia", logoURI: "" },
     ];
     // Prepend testnet chains, skip if LI.FI somehow already includes them
     const lifiIds = new Set(chains.map((c) => c.id));
@@ -315,8 +328,23 @@ export function DepositFlow({ appId }: { appId: bigint }) {
         } as unknown as TokenAmount,
       ];
     }
+    // Base Sepolia USDC
+    if (!merged[BASE_SEPOLIA_CHAIN_ID]) {
+      merged[BASE_SEPOLIA_CHAIN_ID] = [
+        {
+          address: BASE_SEPOLIA_USDC,
+          chainId: BASE_SEPOLIA_CHAIN_ID,
+          symbol: "USDC",
+          decimals: 6,
+          name: "USD Coin",
+          priceUSD: "1",
+          logoURI: "",
+          amount: baseSepoliaUsdcBalance ?? BigInt(0),
+        } as unknown as TokenAmount,
+      ];
+    }
     return merged;
-  }, [tokensByChain, arcUsdcBalance, arbSepoliaUsdcBalance]);
+  }, [tokensByChain, arcUsdcBalance, arbSepoliaUsdcBalance, baseSepoliaUsdcBalance]);
 
   // ─── Route detection ──────────────────────────────────────────────────
   const route: DepositRoute | null =
@@ -372,6 +400,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
         destinations: QUOTE_DESTINATIONS.map((d) => ({
           toChain: d.chainId,
           toToken: d.usdc,
+          bridgeTestnetChainId: d.bridgeTestnetChainId,
         })),
       });
     }, 500);
@@ -421,8 +450,10 @@ export function DepositFlow({ appId }: { appId: bigint }) {
             setSwapStatus("done");
           } else if (stepLabel.startsWith("Bridge to Arc")) {
             // ── Circle Bridge Step ──
+            // For "bridge" route: user already has USDC on a testnet chain
+            // For "full" route: LiFi swap lands on mainnet, bridge from corresponding testnet
             const bridgeChainId =
-              routeType === "bridge" ? sourceChainId! : quote!.destinationChainId;
+              routeType === "bridge" ? sourceChainId! : quote!.bridgeTestnetChainId;
             const config = getCircleBridgeConfig(bridgeChainId);
             if (!config) throw new Error("Bridge chain config not found");
 

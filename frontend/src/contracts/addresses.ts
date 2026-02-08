@@ -21,6 +21,7 @@ export const USDC_ADDRESSES: Record<number, Address> = {
   42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // Arbitrum mainnet
   8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base mainnet
   421614: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia
+  84532: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia
   5042002: "0x3600000000000000000000000000000000000000", // Arc testnet
 };
 
@@ -36,21 +37,25 @@ export const CIRCLE_BRIDGE_CHAINS: Record<
     bridgeChainName: "Arbitrum",
     label: "Arbitrum",
   },
-  8453: {
-    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    bridgeChainName: "Base",
-    label: "Base",
-  },
   421614: {
     usdc: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
     bridgeChainName: "Arbitrum_Sepolia",
     label: "Arbitrum Sepolia",
   },
+  84532: {
+    usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    bridgeChainName: "Base_Sepolia",
+    label: "Base Sepolia",
+  },
 };
 
-export const QUOTE_DESTINATIONS: { chainId: number; usdc: Address }[] = [
-  { chainId: 42161, usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" }, // Arbitrum
-  { chainId: 8453,  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" }, // Base
+export const QUOTE_DESTINATIONS: {
+  chainId: number;
+  usdc: Address;
+  bridgeTestnetChainId: number;
+}[] = [
+  { chainId: 42161, usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", bridgeTestnetChainId: 421614 }, // Arbitrum → Arb Sepolia
+  { chainId: 8453,  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", bridgeTestnetChainId: 84532 },  // Base → Base Sepolia
 ];
 
 export function getContractAddress(chainId: number) {
