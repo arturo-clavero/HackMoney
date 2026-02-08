@@ -7,6 +7,7 @@ import {
   optimism,
   polygon,
   base,
+  baseSepolia,
 } from "@reown/appkit/networks";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import { defineChain } from "@reown/appkit/networks";
@@ -52,6 +53,7 @@ export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [
   optimism,
   polygon,
   base,
+  baseSepolia,
 ];
 
 export const wagmiAdapter = new WagmiAdapter({
