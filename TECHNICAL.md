@@ -1,4 +1,4 @@
-# HackMoney — Technical Documentation
+# StabiFi — Technical Documentation
 
 ## Table of Contents
 
@@ -10,13 +10,12 @@
 6. [LI.FI Integration](#6-lifi-integration)
 7. [ENS Integration](#7-ens-integration)
 8. [Frontend Architecture](#8-frontend-architecture)
-9. [Product Feedback for Circle](#9-product-feedback-for-circle)
 
 ---
 
 ## 1. Project Overview
 
-HackMoney is a **multi-chain stablecoin factory** that lets anyone deploy their own permissioned, collateral-backed stablecoin instance. Each instance is an isolated ERC-20 token with configurable collateral backing, access controls, and peg mechanics.
+StabiFi is a **multi-chain stablecoin factory** that lets anyone deploy their own permissioned, collateral-backed stablecoin instance. Each instance is an isolated ERC-20 token with configurable collateral backing, access controls, and peg mechanics.
 
 ### The Problem
 
@@ -24,7 +23,7 @@ Creating a stablecoin today requires building an entire protocol from scratch �
 
 ### The Solution
 
-HackMoney provides a **factory pattern** where any user can deploy a stablecoin instance in minutes through a guided wizard. Each instance gets:
+StabiFi provides a **factory pattern** where any user can deploy a stablecoin instance in minutes through a guided wizard. Each instance gets:
 
 - A **dedicated ERC-20 token** (PrivateCoin) with permissioned minting, holding, and transfers
 - A **collateral vault** backed by stablecoins, yield-bearing assets, or mixed baskets
@@ -285,7 +284,7 @@ By deploying the HardPeg on Arc, all USDC deposits from any chain consolidate in
 When users redeem their stablecoins and withdraw collateral, the USDC they receive on Arc can be bridged to whichever chain they need via the same CCTP infrastructure. A user who deposited from Ethereum can withdraw to Base if that's where they need funds — the vault's liquidity is chain-agnostic.
 
 **5. Compliance-Ready Architecture**
-Arc's opt-in confidential transfers (amounts shielded, addresses public) with selective disclosure via view keys align with the permissioned nature of HackMoney's PrivateCoin tokens. Institutional users who need privacy for treasury operations can use Arc's confidential transfers while still providing auditors with view key access.
+Arc's opt-in confidential transfers (amounts shielded, addresses public) with selective disclosure via view keys align with the permissioned nature of StabiFi's PrivateCoin tokens. Institutional users who need privacy for treasury operations can use Arc's confidential transfers while still providing auditors with view key access.
 
 ### Circle Tools Used
 
@@ -340,7 +339,7 @@ LI.FI collapses this into a **single flow within our application**. The user sel
 ### What LI.FI Unlocks
 
 **1. Universal Deposits — "Deposit From Anywhere"**
-Users can deposit into HackMoney vaults from any of 60+ EVM chains using any token. LI.FI's routing layer queries 27 bridges and 31 DEX aggregators to find the optimal path. This means:
+Users can deposit into StabiFi vaults from any of 60+ EVM chains using any token. LI.FI's routing layer queries 27 bridges and 31 DEX aggregators to find the optimal path. This means:
 - No need to leave our application to prepare assets
 - No need to know which bridge is cheapest or most reliable
 - No manual multi-step swapping
@@ -382,7 +381,7 @@ const bestRoute = results
 This ensures users always get the maximum USDC output, regardless of which intermediary chain offers the best rate at that moment.
 
 **4. Liquidity Aggregation Across All Supported Chains**
-By integrating LI.FI, HackMoney effectively treats all liquidity across all 60+ EVM chains as a single pool. A vault on Arc doesn't just draw from Arc-native liquidity — it can attract deposits from Ethereum whales, Polygon users, Base degens, and anyone else with tokens on any supported chain. This dramatically increases the addressable market for each stablecoin instance.
+By integrating LI.FI, StabiFi effectively treats all liquidity across all 60+ EVM chains as a single pool. A vault on Arc doesn't just draw from Arc-native liquidity — it can attract deposits from Ethereum whales, Polygon users, Base degens, and anyone else with tokens on any supported chain. This dramatically increases the addressable market for each stablecoin instance.
 
 ### LI.FI SDK Integration
 
@@ -391,7 +390,7 @@ By integrating LI.FI, HackMoney effectively treats all liquidity across all 60+ 
 import { createConfig, EVM } from "@lifi/sdk";
 
 createConfig({
-  integrator: "hackmoney",
+  integrator: "stabifi",
   providers: [
     EVM({
       getWalletClient: () => getWalletClient(wagmiConfig),
@@ -443,9 +442,9 @@ On the home page and instance detail pages, instance owners are displayed with t
 
 **4. ENS Text Records for Instance Metadata**
 ENS names can store arbitrary key-value text records. Stablecoin instances could store metadata in their owner's ENS records:
-- `com.hackmoney.instance.1.description` → "ACME Corp Employee Credits"
-- `com.hackmoney.instance.1.terms` → IPFS hash of terms of service
-- `com.hackmoney.instance.1.website` → instance-specific landing page
+- `com.stabifi.instance.1.description` → "ACME Corp Employee Credits"
+- `com.stabifi.instance.1.terms` → IPFS hash of terms of service
+- `com.stabifi.instance.1.website` → instance-specific landing page
 
 This enables **decentralized, verifiable metadata** without requiring a centralized backend.
 
@@ -513,28 +512,6 @@ The frontend uses Reown AppKit (successor to WalletConnect) for wallet connectio
 - Social login via Reown
 
 Chain switching is handled automatically — when a user selects a token on a different chain, the frontend prompts for a chain switch before executing the LI.FI route.
-
----
-
-## 9. Product Feedback for Circle
-
-### What Works Well
-
-**Bridge Kit** is straightforward to integrate with a viem-based stack. The `createBridgeKit()` + `viemAdapter()` pattern maps cleanly to a wagmi application. Having the full CCTP lifecycle (approve → burn → attest → mint) abstracted into a single `kit.bridge()` call significantly reduces integration complexity.
-
-**Arc Testnet** is easy to develop against — standard EVM tooling (Foundry, viem) works without modifications. Deploying Solidity contracts to Arc is identical to deploying to any other EVM chain, which eliminates onboarding friction.
-
-**USDC as gas** on Arc is a genuine UX improvement for stablecoin-native applications. Users of our protocol only deal in stablecoins, so never needing to acquire ETH for gas is a meaningful reduction in steps.
-
-### Suggestions for Improvement
-
-**Bridge Kit testnet coverage**: During development, we found that the set of testnet chains supported by Bridge Kit is smaller than the mainnet set. Having Arbitrum Sepolia ↔ Arc Testnet is helpful, but broader testnet support (e.g., Sepolia ↔ Arc Testnet) would make it easier to test full cross-chain flows without touching mainnet.
-
-**Gateway Hooks for custom contracts**: Circle Gateway's Hooks feature (atomic mint + contract call) would be ideal for our use case — a user could deposit USDC on Ethereum and have it atomically mint on Arc and deposit into our HardPeg vault in one transaction. Currently this requires two separate steps (bridge, then deposit). If Hooks become available on Arc Testnet with documentation for custom contract integration, it would eliminate the two-step flow entirely.
-
-**Arc block explorer**: A more fully-featured block explorer for Arc Testnet would help with debugging. Standard tools like Etherscan are not available for Arc, so verifying contract state sometimes requires manual RPC calls.
-
-**CCTP V2 Fast Transfer on testnet**: If Fast Transfer (sub-second attestation) were available on the testnet, it would let us demonstrate the full speed advantage of Arc as a liquidity hub. Currently testnet bridging takes ~15 minutes, which doesn't showcase Arc's actual settlement speed.
 
 ---
 
