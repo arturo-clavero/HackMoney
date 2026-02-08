@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
 import { getContractAddress } from "@/contracts/addresses";
 import { erc20Abi, formatUnits, type Address } from "viem";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -20,19 +21,29 @@ function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-const ARC_CHAIN_ID = 5042002;
+type PegType = "hard" | "medium";
 
-export function InstanceOverview({ appId }: { appId: bigint }) {
+export function InstanceOverview({
+  appId,
+  pegType = "hard",
+  chainId = 5042002,
+}: {
+  appId: bigint;
+  pegType?: PegType;
+  chainId?: number;
+}) {
   const { address } = useAppKitAccount();
-  const addresses = getContractAddress(ARC_CHAIN_ID);
-  const contractAddress = addresses?.hardPeg;
+  const addresses = getContractAddress(chainId);
+  const contractAddress =
+    pegType === "medium" ? addresses?.mediumPeg : addresses?.hardPeg;
+  const abi = pegType === "medium" ? mediumPegAbi : hardPegAbi;
 
   const { data: appConfig } = useReadContract({
     address: contractAddress,
-    abi: hardPegAbi,
+    abi,
     functionName: "getAppConfig",
     args: [appId],
-    chainId: ARC_CHAIN_ID,
+    chainId,
     query: { enabled: !!contractAddress },
   });
 
@@ -48,43 +59,63 @@ export function InstanceOverview({ appId }: { appId: bigint }) {
             address: coinAddress,
             abi: erc20Abi,
             functionName: "name" as const,
-            chainId: ARC_CHAIN_ID,
+            chainId,
           },
           {
             address: coinAddress,
             abi: erc20Abi,
             functionName: "symbol" as const,
-            chainId: ARC_CHAIN_ID,
+            chainId,
           },
           {
             address: coinAddress,
             abi: erc20Abi,
             functionName: "totalSupply" as const,
-            chainId: ARC_CHAIN_ID,
+            chainId,
           },
         ]
       : [],
     query: { enabled: !!coinAddress },
   });
 
+  // HardPeg: vault balance (single value)
   const { data: vaultBalance } = useReadContract({
     address: contractAddress,
     abi: hardPegAbi,
     functionName: "getVaultBalance",
     args: [appId, address as Address],
-    chainId: ARC_CHAIN_ID,
-    query: { enabled: !!contractAddress && !!address },
+    chainId,
+    query: { enabled: pegType === "hard" && !!contractAddress && !!address },
+  });
+
+  // MediumPeg: position (principal + shares)
+  const { data: position } = useReadContract({
+    address: contractAddress,
+    abi: mediumPegAbi,
+    functionName: "getPosition",
+    args: [appId, address as Address],
+    chainId,
+    query: { enabled: pegType === "medium" && !!contractAddress && !!address },
   });
 
   const coinName = coinReads.data?.[0]?.result as string | undefined;
   const coinSymbol = coinReads.data?.[1]?.result as string | undefined;
   const totalSupply = coinReads.data?.[2]?.result as bigint | undefined;
 
+  const pegLabel = pegType === "hard" ? "Hard Peg" : "Yield Peg";
+  const chainLabel = chainId === 5042002 ? "Arc Testnet" : "Arbitrum";
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Overview</CardTitle>
-        {isOwner && <Badge>Owner</Badge>}
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{chainLabel}</Badge>
+          <Badge variant={pegType === "hard" ? "default" : "secondary"}>
+            {pegLabel}
+          </Badge>
+          {isOwner && <Badge>Owner</Badge>}
+        </div>
       </CardHeader>
       <CardContent className="px-5 py-0 pb-1">
         <Row label="Coin Name" value={coinName ?? "Loading..."} />
@@ -114,14 +145,36 @@ export function InstanceOverview({ appId }: { appId: bigint }) {
           }
         />
         <Separator />
-        <Row
-          label="Your Vault Balance"
-          value={
-            vaultBalance !== undefined
-              ? `${vaultBalance.toString()} value units`
-              : "..."
-          }
-        />
+        {pegType === "hard" ? (
+          <Row
+            label="Your Vault Balance"
+            value={
+              vaultBalance !== undefined
+                ? `${vaultBalance.toString()} value units`
+                : "..."
+            }
+          />
+        ) : (
+          <>
+            <Row
+              label="Your Principal"
+              value={
+                position
+                  ? `${formatUnits((position as [bigint, bigint])[0], 6)} USDC`
+                  : "..."
+              }
+            />
+            <Separator />
+            <Row
+              label="Your Shares"
+              value={
+                position
+                  ? `${formatUnits((position as [bigint, bigint])[1], 6)}`
+                  : "..."
+              }
+            />
+          </>
+        )}
       </CardContent>
     </Card>
   );

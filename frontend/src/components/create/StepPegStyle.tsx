@@ -25,9 +25,9 @@ const PEG_OPTIONS: PegOption[] = [
     id: "yield",
     title: "Yield Peg",
     description:
-      "Backed by yield-bearing assets like vault tokens. Your collateral earns yield while it sits behind your stablecoin.",
+      "Backed by yield-bearing assets like vault tokens. Your collateral earns yield while it sits behind your stablecoin. Deploys on Arbitrum.",
     accepts: "Yield-bearing tokens",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "soft",

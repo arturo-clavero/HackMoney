@@ -10,6 +10,7 @@ import {
   useEnsAddress,
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
 import { getContractAddress } from "@/contracts/addresses";
 import { isAddress, type Address } from "viem";
 import { normalize } from "viem/ens";
@@ -25,13 +26,23 @@ function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-const ARC_CHAIN_ID = 5042002;
+type PegType = "hard" | "medium";
 
-export function UserManagement({ appId }: { appId: bigint }) {
+export function UserManagement({
+  appId,
+  pegType = "hard",
+  chainId = 5042002,
+}: {
+  appId: bigint;
+  pegType?: PegType;
+  chainId?: number;
+}) {
   const { address } = useAppKitAccount();
-  const addresses = getContractAddress(ARC_CHAIN_ID);
-  const contractAddress = addresses?.hardPeg;
-  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
+  const addresses = getContractAddress(chainId);
+  const contractAddress =
+    pegType === "medium" ? addresses?.mediumPeg : addresses?.hardPeg;
+  const abi = pegType === "medium" ? mediumPegAbi : hardPegAbi;
+  const publicClient = usePublicClient({ chainId });
   const [addInput, setAddInput] = useState("");
   const [users, setUsers] = useState<Address[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -60,10 +71,10 @@ export function UserManagement({ appId }: { appId: bigint }) {
 
   const { data: appConfig } = useReadContract({
     address: contractAddress,
-    abi: hardPegAbi,
+    abi,
     functionName: "getAppConfig",
     args: [appId],
-    chainId: ARC_CHAIN_ID,
+    chainId,
     query: { enabled: !!contractAddress },
   });
 
@@ -89,7 +100,7 @@ export function UserManagement({ appId }: { appId: bigint }) {
         const to = from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
         const logs = await publicClient.getContractEvents({
           address: contractAddress,
-          abi: hardPegAbi,
+          abi,
           eventName: "UserListUpdated",
           args: { id: appId },
           fromBlock: from,
@@ -112,7 +123,7 @@ export function UserManagement({ appId }: { appId: bigint }) {
     } finally {
       setLoadingUsers(false);
     }
-  }, [publicClient, contractAddress, appId, addresses]);
+  }, [publicClient, contractAddress, appId, addresses, abi]);
 
   useEffect(() => {
     fetchUsers();
@@ -121,9 +132,9 @@ export function UserManagement({ appId }: { appId: bigint }) {
   // Watch for new events and refresh the list
   useWatchContractEvent({
     address: contractAddress,
-    abi: hardPegAbi,
+    abi,
     eventName: "UserListUpdated",
-    chainId: ARC_CHAIN_ID,
+    chainId,
     onLogs: () => {
       fetchUsers();
     },
@@ -156,10 +167,10 @@ export function UserManagement({ appId }: { appId: bigint }) {
     if (!contractAddress || !resolvedAddress) return;
     writeContract({
       address: contractAddress,
-      abi: hardPegAbi,
+      abi,
       functionName: "addUsers",
       args: [appId, [resolvedAddress]],
-      chainId: ARC_CHAIN_ID,
+      chainId,
     });
   };
 

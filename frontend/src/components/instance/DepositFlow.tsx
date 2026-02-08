@@ -8,7 +8,7 @@ import {
   useSwitchChain,
   useConfig,
 } from "wagmi";
-import { waitForTransactionReceipt as waitForTxReceipt } from "@wagmi/core";
+import { waitForTransactionReceipt as waitForTxReceipt, readContract } from "@wagmi/core";
 import {
   erc20Abi,
   formatUnits,
@@ -17,11 +17,14 @@ import {
 } from "viem";
 import type { TokenAmount } from "@lifi/sdk";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
 import {
   getContractAddress,
   USDC_ADDRESSES,
   ARC_CHAIN_ID,
   ARC_USDC,
+  ARBITRUM_CHAIN_ID,
+  WA_ARB_USDC_VAULT,
   isCircleBridgeChain,
   getCircleBridgeConfig,
   QUOTE_DESTINATIONS,
@@ -37,6 +40,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "@/components/motion";
 
+type PegType = "hard" | "medium";
+
 function getChainLabel(chainId: number): string {
   const labels: Record<number, string> = {
     42161: "Arbitrum",
@@ -47,9 +52,26 @@ function getChainLabel(chainId: number): string {
 
 // ─── Route Detection ─────────────────────────────────────────────────────────
 
-type DepositRoute = "direct" | "bridge" | "full";
+type DepositRoute = "direct" | "bridge" | "full" | "lifi-composer";
 
-function detectRoute(tokenAddress: string, chainId: number): DepositRoute {
+function detectRoute(
+  tokenAddress: string,
+  chainId: number,
+  pegType: PegType
+): DepositRoute {
+  if (pegType === "medium") {
+    // MediumPeg: user has waArbUSDCn on Arbitrum → direct
+    if (
+      chainId === ARBITRUM_CHAIN_ID &&
+      tokenAddress.toLowerCase() === WA_ARB_USDC_VAULT.toLowerCase()
+    ) {
+      return "direct";
+    }
+    // Everything else → LiFi Composer (swap to waArbUSDCn)
+    return "lifi-composer";
+  }
+
+  // HardPeg routes (unchanged)
   if (
     chainId === ARC_CHAIN_ID &&
     tokenAddress.toLowerCase() === ARC_USDC.toLowerCase()
@@ -71,10 +93,14 @@ function getRouteSteps(route: DepositRoute): string[] {
       return ["Bridge to Arc", "Deposit"];
     case "full":
       return ["Swap to USDC", "Bridge to Arc", "Deposit"];
+    case "lifi-composer":
+      return ["Swap to waArbUSDCn", "Deposit"];
   }
 }
 
-function getRouteBadge(route: DepositRoute): { label: string; variant: "default" | "secondary" | "outline" } {
+function getRouteBadge(
+  route: DepositRoute
+): { label: string; variant: "default" | "secondary" | "outline" } {
   switch (route) {
     case "direct":
       return { label: "Direct Deposit", variant: "default" };
@@ -82,6 +108,8 @@ function getRouteBadge(route: DepositRoute): { label: string; variant: "default"
       return { label: "Bridge + Deposit", variant: "secondary" };
     case "full":
       return { label: "Swap + Bridge + Deposit", variant: "outline" };
+    case "lifi-composer":
+      return { label: "LiFi Composer + Deposit", variant: "secondary" };
   }
 }
 
@@ -168,12 +196,23 @@ function StepTracker({ steps }: { steps: StepState[] }) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export function DepositFlow({ appId }: { appId: bigint }) {
+export function DepositFlow({
+  appId,
+  pegType = "hard",
+  chainId: instanceChainId = ARC_CHAIN_ID,
+}: {
+  appId: bigint;
+  pegType?: PegType;
+  chainId?: number;
+}) {
   const wagmiConfig = useConfig();
   const { caipAddress, address } = useAppKitAccount();
   const walletChainId = caipAddress ? parseInt(caipAddress.split(":")[1]) : undefined;
-  const contractAddresses = getContractAddress(ARC_CHAIN_ID);
-  const contractAddress = contractAddresses?.hardPeg;
+  const contractAddresses = getContractAddress(instanceChainId);
+  const contractAddress =
+    pegType === "medium"
+      ? contractAddresses?.mediumPeg
+      : contractAddresses?.hardPeg;
   const { switchChainAsync } = useSwitchChain();
 
   // ─── Token & amount state ──────────────────────────────────────────────
@@ -225,7 +264,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     reset: resetBridge,
   } = useBridgeToArc();
 
-  // ─── Contract write hooks (approve + deposit on Arc) ───────────────────
+  // ─── Contract write hooks (approve + deposit) ──────────────────────────
   const {
     writeContractAsync: writeApproveAsync,
   } = useWriteContract();
@@ -268,14 +307,33 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     query: { enabled: !!address },
   });
 
-  // ─── Vault balance ────────────────────────────────────────────────────
+  // ─── waArbUSDCn balance on Arbitrum ───────────────────────────────────
+  const { data: waArbUsdcBalance } = useReadContract({
+    address: WA_ARB_USDC_VAULT,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [address as Address],
+    chainId: ARBITRUM_CHAIN_ID,
+    query: { enabled: !!address && pegType === "medium" },
+  });
+
+  // ─── Vault balance (HardPeg) / Position (MediumPeg) ────────────────────
   const { data: vaultBalance, refetch: refetchVault } = useReadContract({
     address: contractAddress,
     abi: hardPegAbi,
     functionName: "getVaultBalance",
     args: [appId, address as Address],
-    chainId: ARC_CHAIN_ID,
-    query: { enabled: !!contractAddress && !!address },
+    chainId: instanceChainId,
+    query: { enabled: pegType === "hard" && !!contractAddress && !!address },
+  });
+
+  const { data: position, refetch: refetchPosition } = useReadContract({
+    address: contractAddress,
+    abi: mediumPegAbi,
+    functionName: "getPosition",
+    args: [appId, address as Address],
+    chainId: instanceChainId,
+    query: { enabled: pegType === "medium" && !!contractAddress && !!address },
   });
 
   // ─── Load tokens on mount ─────────────────────────────────────────────
@@ -290,7 +348,6 @@ export function DepositFlow({ appId }: { appId: bigint }) {
       { id: ARB_SEPOLIA_CHAIN_ID, name: "Arbitrum Sepolia", logoURI: "" },
       { id: BASE_SEPOLIA_CHAIN_ID, name: "Base Sepolia", logoURI: "" },
     ];
-    // Prepend testnet chains, skip if LI.FI somehow already includes them
     const lifiIds = new Set(chains.map((c) => c.id));
     const extras = testnetChains.filter((c) => !lifiIds.has(c.id));
     return [...extras, ...chains] as typeof chains;
@@ -343,13 +400,41 @@ export function DepositFlow({ appId }: { appId: bigint }) {
         } as unknown as TokenAmount,
       ];
     }
+    // For MediumPeg: inject waArbUSDCn on Arbitrum into token list if not present
+    if (pegType === "medium" && merged[ARBITRUM_CHAIN_ID]) {
+      const hasVaultToken = merged[ARBITRUM_CHAIN_ID].some(
+        (t) => t.address.toLowerCase() === WA_ARB_USDC_VAULT.toLowerCase()
+      );
+      if (!hasVaultToken) {
+        merged[ARBITRUM_CHAIN_ID] = [
+          {
+            address: WA_ARB_USDC_VAULT,
+            chainId: ARBITRUM_CHAIN_ID,
+            symbol: "waArbUSDCn",
+            decimals: 6,
+            name: "Aave Arbitrum USDC Vault",
+            priceUSD: "1",
+            logoURI: "",
+            amount: waArbUsdcBalance ?? BigInt(0),
+          } as unknown as TokenAmount,
+          ...merged[ARBITRUM_CHAIN_ID],
+        ];
+      }
+    }
     return merged;
-  }, [tokensByChain, arcUsdcBalance, arbSepoliaUsdcBalance, baseSepoliaUsdcBalance]);
+  }, [
+    tokensByChain,
+    arcUsdcBalance,
+    arbSepoliaUsdcBalance,
+    baseSepoliaUsdcBalance,
+    waArbUsdcBalance,
+    pegType,
+  ]);
 
   // ─── Route detection ──────────────────────────────────────────────────
   const route: DepositRoute | null =
     sourceToken && sourceChainId
-      ? detectRoute(sourceToken.address, sourceChainId)
+      ? detectRoute(sourceToken.address, sourceChainId, pegType)
       : null;
 
   const routeBadge = route ? getRouteBadge(route) : null;
@@ -372,37 +457,62 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     [clearQuote, resetSwapStatus, resetBridge]
   );
 
-  // ─── Auto-quote for "full" route (LI.FI) ─────────────────────────────
+  // ─── Auto-quote ────────────────────────────────────────────────────────
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (route !== "full" || !sourceToken || !sourceChainId || !address || !amount) {
-      if (route !== "full") clearQuote();
+    const needsQuote =
+      (route === "full" || route === "lifi-composer") &&
+      sourceToken &&
+      sourceChainId &&
+      address &&
+      amount;
+
+    if (!needsQuote) {
+      if (route !== "full" && route !== "lifi-composer") clearQuote();
       return;
     }
 
     let rawAmount: string;
     try {
-      rawAmount = parseUnits(amount, sourceToken.decimals).toString();
+      rawAmount = parseUnits(amount, sourceToken!.decimals).toString();
       if (rawAmount === "0") return;
     } catch {
       return;
     }
 
     debounceRef.current = setTimeout(() => {
-      fetchQuote({
-        fromChain: sourceChainId,
-        fromToken: sourceToken.address,
-        fromAmount: rawAmount,
-        fromAddress: address,
-        destinations: QUOTE_DESTINATIONS.map((d) => ({
-          toChain: d.chainId,
-          toToken: d.usdc,
-          bridgeTestnetChainId: d.bridgeTestnetChainId,
-        })),
-      });
+      if (route === "lifi-composer") {
+        // MediumPeg: quote swap to waArbUSDCn on Arbitrum
+        fetchQuote({
+          fromChain: sourceChainId!,
+          fromToken: sourceToken!.address,
+          fromAmount: rawAmount,
+          fromAddress: address!,
+          destinations: [
+            {
+              toChain: ARBITRUM_CHAIN_ID,
+              toToken: WA_ARB_USDC_VAULT,
+              bridgeTestnetChainId: 0,
+            },
+          ],
+        });
+      } else {
+        // HardPeg full route
+        fetchQuote({
+          fromChain: sourceChainId!,
+          fromToken: sourceToken!.address,
+          fromAmount: rawAmount,
+          fromAddress: address!,
+          destinations: QUOTE_DESTINATIONS.map((d) => ({
+            toChain: d.chainId,
+            toToken: d.usdc,
+            bridgeTestnetChainId: d.bridgeTestnetChainId,
+          })),
+        });
+      }
     }, 500);
 
     return () => {
@@ -410,12 +520,15 @@ export function DepositFlow({ appId }: { appId: bigint }) {
     };
   }, [route, sourceToken, sourceChainId, address, amount, fetchQuote, clearQuote]);
 
-  // ─── Helper: wait for tx receipt (uses wagmi's configured transports) ──
+  // ─── Helper: wait for tx receipt ───────────────────────────────────────
   const waitForTx = useCallback(
-    async (hash: `0x${string}`) => {
-      return waitForTxReceipt(wagmiConfig, { hash, chainId: ARC_CHAIN_ID });
+    async (hash: `0x${string}`, txChainId?: number) => {
+      return waitForTxReceipt(wagmiConfig, {
+        hash,
+        chainId: txChainId ?? instanceChainId,
+      });
     },
-    [wagmiConfig]
+    [wagmiConfig, instanceChainId]
   );
 
   // ─── Execution engine ─────────────────────────────────────────────────
@@ -444,32 +557,31 @@ export function DepositFlow({ appId }: { appId: bigint }) {
           const stepLabel = stepLabels[i];
 
           if (stepLabel.startsWith("Swap to USDC")) {
-            // ── LI.FI Swap Step ──
+            // ── HardPeg LI.FI Swap Step ──
+            if (!quote) throw new Error("No quote available");
+            await executeSwap(quote.route);
+            setSwapStatus("done");
+          } else if (stepLabel.startsWith("Swap to waArbUSDCn")) {
+            // ── MediumPeg LI.FI Composer Swap Step ──
             if (!quote) throw new Error("No quote available");
             await executeSwap(quote.route);
             setSwapStatus("done");
           } else if (stepLabel.startsWith("Bridge to Arc")) {
-            // ── Circle Bridge Step ──
-            // For "bridge" route: user already has USDC on a testnet chain
-            // For "full" route: LiFi swap lands on mainnet, bridge from corresponding testnet
+            // ── Circle Bridge Step (HardPeg only) ──
             const bridgeChainId =
               routeType === "bridge" ? sourceChainId! : quote!.bridgeTestnetChainId;
             const config = getCircleBridgeConfig(bridgeChainId);
             if (!config) throw new Error("Bridge chain config not found");
 
-            // Always switch — walletChainId is stale inside the async loop
             await switchChainAsync({ chainId: bridgeChainId });
 
-            // Determine bridge amount
             let bridgeAmount: string;
             if (routeType === "full" && quote) {
-              // After LI.FI swap, we have the output amount in USDC (6 decimals)
               bridgeAmount = formatUnits(BigInt(quote.toAmount), 6);
             } else {
               bridgeAmount = amount;
             }
 
-            // Execute bridge and wait for completion
             await new Promise<void>((resolve, reject) => {
               bridge(bridgeAmount, config.bridgeChainName)
                 .then(() => {
@@ -484,42 +596,80 @@ export function DepositFlow({ appId }: { appId: bigint }) {
             // ── Approve + Deposit Step ──
             if (!contractAddress) throw new Error("Contract address not found");
 
-            // Always switch — walletChainId is stale inside the async loop
-            await switchChainAsync({ chainId: ARC_CHAIN_ID });
+            if (pegType === "medium") {
+              // MediumPeg: approve waArbUSDCn → depositShares
+              await switchChainAsync({ chainId: ARBITRUM_CHAIN_ID });
 
-            // Determine deposit amount
-            let depositRaw: bigint;
-            if (routeType === "direct") {
-              depositRaw = parseUnits(amount, 6);
-            } else if (routeType === "bridge") {
-              depositRaw = parseUnits(amount, 6);
+              // Determine shares amount — read actual balance after swap
+              // to avoid slippage mismatch with quote.toAmount
+              let sharesRaw: bigint;
+              if (routeType === "direct") {
+                sharesRaw = parseUnits(amount, 6);
+              } else {
+                // lifi-composer: read actual waArbUSDCn balance
+                const balance = await readContract(wagmiConfig, {
+                  address: WA_ARB_USDC_VAULT,
+                  abi: erc20Abi,
+                  functionName: "balanceOf",
+                  args: [address as Address],
+                  chainId: ARBITRUM_CHAIN_ID,
+                });
+                sharesRaw = balance;
+                if (sharesRaw === BigInt(0)) throw new Error("No waArbUSDCn received from swap");
+              }
+
+              // Approve vault token to MediumPeg
+              const approveTxHash = await writeApproveAsync({
+                address: WA_ARB_USDC_VAULT,
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [contractAddress, sharesRaw],
+                chainId: ARBITRUM_CHAIN_ID,
+              });
+              await waitForTx(approveTxHash, ARBITRUM_CHAIN_ID);
+
+              // depositShares
+              const depositTxHash = await writeDepositAsync({
+                address: contractAddress,
+                abi: mediumPegAbi,
+                functionName: "depositShares",
+                args: [appId, sharesRaw],
+                chainId: ARBITRUM_CHAIN_ID,
+              });
+              await waitForTx(depositTxHash, ARBITRUM_CHAIN_ID);
+              refetchPosition();
             } else {
-              // Full route: use LI.FI quote output (already bridged 1:1 via Circle)
-              depositRaw = quote ? BigInt(quote.toAmount) : parseUnits(amount, 6);
+              // HardPeg: approve ARC USDC → deposit
+              await switchChainAsync({ chainId: ARC_CHAIN_ID });
+
+              let depositRaw: bigint;
+              if (routeType === "direct") {
+                depositRaw = parseUnits(amount, 6);
+              } else if (routeType === "bridge") {
+                depositRaw = parseUnits(amount, 6);
+              } else {
+                depositRaw = quote ? BigInt(quote.toAmount) : parseUnits(amount, 6);
+              }
+
+              const approveTxHash = await writeApproveAsync({
+                address: ARC_USDC,
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [contractAddress, depositRaw],
+                chainId: ARC_CHAIN_ID,
+              });
+              await waitForTx(approveTxHash, ARC_CHAIN_ID);
+
+              const depositTxHash = await writeDepositAsync({
+                address: contractAddress,
+                abi: hardPegAbi,
+                functionName: "deposit",
+                args: [appId, ARC_USDC, depositRaw],
+                chainId: ARC_CHAIN_ID,
+              });
+              await waitForTx(depositTxHash, ARC_CHAIN_ID);
+              refetchVault();
             }
-
-            // Approve
-            const approveTxHash = await writeApproveAsync({
-              address: ARC_USDC,
-              abi: erc20Abi,
-              functionName: "approve",
-              args: [contractAddress, depositRaw],
-              chainId: ARC_CHAIN_ID,
-            });
-
-            await waitForTx(approveTxHash);
-
-            // Deposit
-            const depositTxHash = await writeDepositAsync({
-              address: contractAddress,
-              abi: hardPegAbi,
-              functionName: "deposit",
-              args: [appId, ARC_USDC, depositRaw],
-              chainId: ARC_CHAIN_ID,
-            });
-
-            await waitForTx(depositTxHash);
-            refetchVault();
           }
 
           updateStep(i, { status: "done" });
@@ -541,6 +691,8 @@ export function DepositFlow({ appId }: { appId: bigint }) {
       amount,
       contractAddress,
       appId,
+      pegType,
+      instanceChainId,
       executeSwap,
       setSwapStatus,
       bridge,
@@ -549,6 +701,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
       writeDepositAsync,
       waitForTx,
       refetchVault,
+      refetchPosition,
       updateStep,
     ]
   );
@@ -598,12 +751,13 @@ export function DepositFlow({ appId }: { appId: bigint }) {
   }, [clearQuote, resetSwapStatus, resetBridge]);
 
   // ─── Computed ─────────────────────────────────────────────────────────
+  const needsQuote = route === "full" || route === "lifi-composer";
   const canDeposit =
     !!sourceToken &&
     !!amount &&
     !executing &&
     !flowDone &&
-    (route !== "full" || !!quote);
+    (!needsQuote || !!quote);
 
   const formattedArcBalance =
     arcUsdcBalance !== undefined
@@ -611,6 +765,20 @@ export function DepositFlow({ appId }: { appId: bigint }) {
           maximumFractionDigits: 4,
         })
       : null;
+
+  const formattedVaultTokenBalance =
+    waArbUsdcBalance !== undefined
+      ? Number(formatUnits(waArbUsdcBalance, 6)).toLocaleString(undefined, {
+          maximumFractionDigits: 4,
+        })
+      : null;
+
+  const successBalanceText =
+    pegType === "medium" && position
+      ? `Principal: ${formatUnits((position as [bigint, bigint])[0], 6)} USDC`
+      : pegType === "hard" && vaultBalance !== undefined
+        ? `Vault balance: ${vaultBalance.toString()} value units`
+        : undefined;
 
   // ─── Render ───────────────────────────────────────────────────────────
   return (
@@ -623,9 +791,9 @@ export function DepositFlow({ appId }: { appId: bigint }) {
               <p className="text-sm font-medium text-green-700 dark:text-green-300">
                 Deposit successful!
               </p>
-              {vaultBalance !== undefined && (
+              {successBalanceText && (
                 <p className="mt-1 text-xs text-green-600 dark:text-green-400">
-                  Vault balance: {vaultBalance.toString()} value units
+                  {successBalanceText}
                 </p>
               )}
             </AlertDescription>
@@ -678,9 +846,14 @@ export function DepositFlow({ appId }: { appId: bigint }) {
               <Badge variant={routeBadge.variant}>
                 {routeBadge.label}
               </Badge>
-              {route === "direct" && formattedArcBalance !== null && (
+              {route === "direct" && pegType === "hard" && formattedArcBalance !== null && (
                 <span className="text-xs text-muted-foreground">
                   USDC on Arc: {formattedArcBalance}
+                </span>
+              )}
+              {route === "direct" && pegType === "medium" && formattedVaultTokenBalance !== null && (
+                <span className="text-xs text-muted-foreground">
+                  waArbUSDCn: {formattedVaultTokenBalance}
                 </span>
               )}
             </div>
@@ -691,7 +864,14 @@ export function DepositFlow({ appId }: { appId: bigint }) {
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <Label>
-                  Amount{route === "direct" || route === "bridge" ? " (USDC)" : ""}
+                  Amount
+                  {route === "direct" && pegType === "hard"
+                    ? " (USDC)"
+                    : route === "bridge"
+                      ? " (USDC)"
+                      : route === "direct" && pegType === "medium"
+                        ? " (waArbUSDCn)"
+                        : ""}
                 </Label>
                 <div className="flex items-center gap-2">
                   {sourceToken.amount && sourceToken.amount > BigInt(0) && (
@@ -708,7 +888,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
                       Max
                     </Button>
                   )}
-                  {route === "full" && (
+                  {needsQuote && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -744,7 +924,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
           )}
 
           {/* Slippage settings */}
-          {showSlippage && route === "full" && (
+          {showSlippage && needsQuote && (
             <Card className="bg-muted/50">
               <CardContent className="p-3">
                 <Label className="mb-1 text-xs">Slippage tolerance (%)</Label>
@@ -771,8 +951,8 @@ export function DepositFlow({ appId }: { appId: bigint }) {
             </Card>
           )}
 
-          {/* LI.FI Quote display (full route only) */}
-          {route === "full" && amount && sourceToken && (
+          {/* LI.FI Quote display (full route or lifi-composer) */}
+          {needsQuote && amount && sourceToken && (
             <Card className="bg-muted/50">
               <CardContent className="p-3">
                 {quoteLoading ? (
@@ -790,7 +970,7 @@ export function DepositFlow({ appId }: { appId: bigint }) {
                         ).toLocaleString(undefined, {
                           maximumFractionDigits: 4,
                         })}{" "}
-                        USDC
+                        {route === "lifi-composer" ? "waArbUSDCn" : "USDC"}
                       </span>
                     </div>
                     {quote.gasCostUSD && (
@@ -804,7 +984,8 @@ export function DepositFlow({ appId }: { appId: bigint }) {
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Est. time</span>
                       <span className="text-xs text-muted-foreground">
-                        ~{Math.ceil(quote.executionDuration / 60)} min (swap) + ~15 min (bridge)
+                        ~{Math.ceil(quote.executionDuration / 60)} min
+                        {route === "full" ? " (swap) + ~15 min (bridge)" : ""}
                       </span>
                     </div>
                     {quote.routesChecked > 1 && (

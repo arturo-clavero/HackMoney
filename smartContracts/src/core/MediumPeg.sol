@@ -55,6 +55,24 @@ import {Error} from "../utils/ErrorLib.sol";
         @notice user deposits yield-bearing stablecoins. Store depositedValue, mint stays 1:1 against it
         @dev only collateral providers call this
      */
+    function depositShares(uint256 appId, uint256 shares) external {
+        depositSharesTo(appId, msg.sender, shares);
+    }
+
+    function depositSharesTo(uint256 appId, address to, uint256 shares) public {
+        address vault = vaults[appId];
+        if (vault == address(0)) revert Error.InvalidTokenAddress();
+        IERC20(vault).safeTransferFrom(to, address(this), shares);
+        uint256 valueAtDeposit = IERC4626(vault).convertToAssets(shares);
+        Position storage p = positions[appId][to];
+        p.principals += valueAtDeposit;
+        p.shares += shares;
+    }
+
+    /**
+        @notice user deposits yield-bearing stablecoins. Store depositedValue, mint stays 1:1 against it
+        @dev only collateral providers call this
+     */
     function deposit(
         uint256 appId,
         uint256 assets)

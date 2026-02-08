@@ -9,12 +9,18 @@ import {
   usePublicClient,
 } from "wagmi";
 import { hardPegAbi } from "@/contracts/abis/hardPeg";
-import { getContractAddress } from "@/contracts/addresses";
+import { mediumPegAbi } from "@/contracts/abis/mediumPeg";
+import {
+  getContractAddress,
+  ARC_CHAIN_ID,
+  ARBITRUM_CHAIN_ID,
+} from "@/contracts/addresses";
 import { erc20Abi, type Address } from "viem";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   PageTransition,
   StaggerContainer,
@@ -22,81 +28,117 @@ import {
   motion,
 } from "@/components/motion";
 
-const ARC_CHAIN_ID = 5042002;
-
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+type PegType = "hard" | "medium";
+
 interface Instance {
   id: bigint;
   coin: Address;
+  pegType: PegType;
+  chainId: number;
 }
+
+interface PegSource {
+  chainId: number;
+  pegType: PegType;
+  contractAddress: Address;
+  abi: typeof hardPegAbi | typeof mediumPegAbi;
+}
+
+const PEG_SOURCES = ([
+  {
+    chainId: ARC_CHAIN_ID,
+    pegType: "hard" as PegType,
+    contractAddress: getContractAddress(ARC_CHAIN_ID)?.hardPeg as Address,
+    abi: hardPegAbi,
+  },
+  {
+    chainId: ARBITRUM_CHAIN_ID,
+    pegType: "medium" as PegType,
+    contractAddress: getContractAddress(ARBITRUM_CHAIN_ID)?.mediumPeg as Address,
+    abi: mediumPegAbi,
+  },
+] as PegSource[]).filter((s) => !!s.contractAddress);
 
 function InstancesList() {
   const { address } = useAppKitAccount();
-  const addresses = getContractAddress(ARC_CHAIN_ID);
-  const contractAddress = addresses?.hardPeg;
 
-  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
+  const arcClient = usePublicClient({ chainId: ARC_CHAIN_ID });
+  const arbClient = usePublicClient({ chainId: ARBITRUM_CHAIN_ID });
+  const clientByChain: Record<number, ReturnType<typeof usePublicClient>> = {
+    [ARC_CHAIN_ID]: arcClient,
+    [ARBITRUM_CHAIN_ID]: arbClient,
+  };
+
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  // One-time fetch of historical events.
-  // Some RPCs (e.g. Arc testnet) limit eth_getLogs to 10k blocks, so we
-  // paginate in chunks from the deploy block to the current block.
   useEffect(() => {
-    if (!contractAddress || !address || !publicClient || !addresses) return;
+    if (!address) return;
     let cancelled = false;
 
     (async () => {
-      try {
-        const currentBlock = await publicClient.getBlockNumber();
-        const deployBlock = addresses.deployBlock;
-        const CHUNK = BigInt(9999);
-        const allLogs: typeof instances = [];
+      const allInstances: Instance[] = [];
 
-        for (
-          let from = deployBlock;
-          from <= currentBlock;
-          from += CHUNK + BigInt(1)
-        ) {
-          if (cancelled) return;
-          const to =
-            from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
-          const logs = await publicClient.getContractEvents({
-            address: contractAddress,
-            abi: hardPegAbi,
-            eventName: "RegisteredApp",
-            args: { owner: address as Address },
-            fromBlock: from,
-            toBlock: to,
-          });
-          for (const log of logs) {
-            allLogs.push({
-              id: log.args.id!,
-              coin: log.args.coin! as Address,
+      for (const source of PEG_SOURCES) {
+        const client = clientByChain[source.chainId];
+        if (!client) continue;
+        const addrs = getContractAddress(source.chainId);
+        if (!addrs) continue;
+
+        try {
+          const currentBlock = await client.getBlockNumber();
+          const deployBlock = addrs.deployBlock;
+          const CHUNK = BigInt(9999);
+
+          for (
+            let from = deployBlock;
+            from <= currentBlock;
+            from += CHUNK + BigInt(1)
+          ) {
+            if (cancelled) return;
+            const to =
+              from + CHUNK > currentBlock ? currentBlock : from + CHUNK;
+            const logs = await client.getContractEvents({
+              address: source.contractAddress,
+              abi: source.abi,
+              eventName: "RegisteredApp",
+              args: { owner: address as Address },
+              fromBlock: from,
+              toBlock: to,
             });
+            for (const log of logs) {
+              allInstances.push({
+                id: log.args.id!,
+                coin: log.args.coin! as Address,
+                pegType: source.pegType,
+                chainId: source.chainId,
+              });
+            }
           }
+        } catch {
+          // continue with other sources
         }
+      }
 
-        if (!cancelled) {
-          setInstances(allLogs);
-          setLoaded(true);
-        }
-      } catch {
-        if (!cancelled) setLoaded(true);
+      if (!cancelled) {
+        setInstances(allInstances);
+        setLoaded(true);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [contractAddress, address, publicClient, addresses]);
+  }, [address, arcClient, arbClient]);
 
-  // Watch for NEW events while the page is open
+  // Watch for NEW events on HardPeg (Arc)
+  const arcAddresses = getContractAddress(ARC_CHAIN_ID);
   useWatchContractEvent({
-    address: contractAddress,
+    address: arcAddresses?.hardPeg,
     abi: hardPegAbi,
     eventName: "RegisteredApp",
     args: { owner: address as Address },
@@ -104,25 +146,58 @@ function InstancesList() {
       const newInstances = logs.map((log) => ({
         id: log.args.id!,
         coin: log.args.coin! as Address,
+        pegType: "hard" as PegType,
+        chainId: ARC_CHAIN_ID,
       }));
       setInstances((prev) => {
-        const existingIds = new Set(prev.map((i) => i.id.toString()));
+        const existingIds = new Set(
+          prev.map((i) => `${i.pegType}-${i.chainId}-${i.id.toString()}`)
+        );
         const unique = newInstances.filter(
-          (i) => !existingIds.has(i.id.toString())
+          (i) =>
+            !existingIds.has(`${i.pegType}-${i.chainId}-${i.id.toString()}`)
         );
         return unique.length > 0 ? [...prev, ...unique] : prev;
       });
     },
-    enabled: !!contractAddress && !!address,
+    enabled: !!arcAddresses?.hardPeg && !!address,
   });
 
-  // Read name() and symbol() for each coin
+  // Watch for NEW events on MediumPeg (Arbitrum)
+  const arbAddresses = getContractAddress(ARBITRUM_CHAIN_ID);
+  useWatchContractEvent({
+    address: arbAddresses?.mediumPeg,
+    abi: mediumPegAbi,
+    eventName: "RegisteredApp",
+    args: { owner: address as Address },
+    onLogs(logs) {
+      const newInstances = logs.map((log) => ({
+        id: log.args.id!,
+        coin: log.args.coin! as Address,
+        pegType: "medium" as PegType,
+        chainId: ARBITRUM_CHAIN_ID,
+      }));
+      setInstances((prev) => {
+        const existingIds = new Set(
+          prev.map((i) => `${i.pegType}-${i.chainId}-${i.id.toString()}`)
+        );
+        const unique = newInstances.filter(
+          (i) =>
+            !existingIds.has(`${i.pegType}-${i.chainId}-${i.id.toString()}`)
+        );
+        return unique.length > 0 ? [...prev, ...unique] : prev;
+      });
+    },
+    enabled: !!arbAddresses?.mediumPeg && !!address,
+  });
+
+  // Read name() and symbol() for each coin — on the correct chain
   const coinNames = useReadContracts({
     contracts: instances.map((inst) => ({
       address: inst.coin,
       abi: erc20Abi,
       functionName: "name" as const,
-      chainId: ARC_CHAIN_ID,
+      chainId: inst.chainId,
     })),
     query: { enabled: instances.length > 0 },
   });
@@ -132,7 +207,7 @@ function InstancesList() {
       address: inst.coin,
       abi: erc20Abi,
       functionName: "symbol" as const,
-      chainId: ARC_CHAIN_ID,
+      chainId: inst.chainId,
     })),
     query: { enabled: instances.length > 0 },
   });
@@ -166,10 +241,15 @@ function InstancesList() {
       {instances.map((inst, i) => {
         const name = coinNames.data?.[i]?.result ?? "Loading...";
         const symbol = coinSymbols.data?.[i]?.result ?? "...";
+        const pegLabel = inst.pegType === "hard" ? "Hard Peg" : "Yield Peg";
+        const chainLabel =
+          inst.chainId === ARC_CHAIN_ID ? "Arc Testnet" : "Arbitrum";
 
         return (
-          <StaggerItem key={inst.id.toString()}>
-            <Link href={`/instance/${inst.id.toString()}`}>
+          <StaggerItem key={`${inst.pegType}-${inst.chainId}-${inst.id.toString()}`}>
+            <Link
+              href={`/instance/${inst.id.toString()}?peg=${inst.pegType}&chain=${inst.chainId}`}
+            >
               <motion.div
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
@@ -192,6 +272,18 @@ function InstancesList() {
                           {truncateAddress(inst.coin)}
                         </span>
                       </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge
+                        variant={
+                          inst.pegType === "hard" ? "default" : "secondary"
+                        }
+                      >
+                        {pegLabel}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {chainLabel}
+                      </span>
                     </div>
                   </CardContent>
                 </Card>

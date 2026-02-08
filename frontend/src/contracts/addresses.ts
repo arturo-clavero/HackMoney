@@ -3,7 +3,7 @@ import { type Address } from "viem";
 // Update these after deployment
 export const CONTRACT_ADDRESSES: Record<
   number,
-  { hardPeg: Address; deployBlock: bigint }
+  { hardPeg?: Address; mediumPeg?: Address; deployBlock: bigint }
 > = {
   // Localhost / Anvil
   31337: {
@@ -14,6 +14,11 @@ export const CONTRACT_ADDRESSES: Record<
   5042002: {
     hardPeg: "0xa642feDfd1B9e5C1d93aA85C9766761F642eA462",
     deployBlock: BigInt(25685700),
+  },
+  // Arbitrum mainnet
+  42161: {
+    mediumPeg: "0xa642feDfd1B9e5C1d93aA85C9766761F642eA462",
+    deployBlock: BigInt(429770749),
   },
 };
 
@@ -27,6 +32,10 @@ export const USDC_ADDRESSES: Record<number, Address> = {
 
 export const ARC_CHAIN_ID = 5042002;
 export const ARC_USDC = USDC_ADDRESSES[ARC_CHAIN_ID];
+
+export const ARBITRUM_CHAIN_ID = 42161;
+export const ARBITRUM_USDC: Address = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+export const WA_ARB_USDC_VAULT: Address = "0x7F6501d3B98eE91f9b9535E4b0ac710Fb0f9e0bc";
 
 export const CIRCLE_BRIDGE_CHAINS: Record<
   number,

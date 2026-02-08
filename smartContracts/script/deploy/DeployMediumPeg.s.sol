@@ -27,7 +27,7 @@ contract DeployMediumPeg is Script {
         vm.startBroadcast(deployerPK);
 
         timelock = new Timelock();
- 
+
         mediumPeg = new MediumPeg(
             deployer,
             address(timelock),
@@ -36,7 +36,7 @@ contract DeployMediumPeg is Script {
         );
 
         mediumPegAdapter = new MediumPegAdapter(address(mediumPeg));
-        
+
         setTimelockedCalls();
         addGlobalCollateral();
         mediumPeg.finishSetUp(owner);
@@ -53,10 +53,10 @@ contract DeployMediumPeg is Script {
 
         address[] memory feeds = new address[](1);
         uint256 chainId = block.chainid;
-        
+
         if (chainId == 5042002) {
             address usdcArc = address(0x3600000000000000000000000000000000000000);
-            feeds[0] = address(0); 
+            feeds[0] = address(0);
             mediumPeg.updateGlobalCollateral(CollateralInput({
                 tokenAddress: usdcArc,
                 mode: Collateral.MODE_STABLE,
@@ -80,7 +80,7 @@ contract DeployMediumPeg is Script {
             }));
 
             address usdc = address(0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238);
-            feeds[0] = address(0); 
+            feeds[0] = address(0);
             mediumPeg.updateGlobalCollateral(CollateralInput({
                 tokenAddress: usdc,
                 mode: Collateral.MODE_STABLE,
@@ -101,12 +101,25 @@ contract DeployMediumPeg is Script {
                 debtCap: 200_000 ether
             }));
         }
-        
+
+        if (chainId == 42161) {
+            address usdc = address(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
+            feeds[0] = address(0);
+            mediumPeg.updateGlobalCollateral(CollateralInput({
+                tokenAddress: usdc,
+                mode: Collateral.MODE_STABLE,
+                oracleFeeds: feeds,
+                LTV: 100,
+                liquidityThreshold: 100,
+                debtCap: 5_000_000 ether
+            }));
+        }
+
     }
 
 
     function setTimelockedCalls() internal {
-        
+
         timelock.setSelector(
             mediumPeg.updateGlobalCollateral.selector,
             CallConfig({
@@ -160,7 +173,7 @@ contract DeployMediumPeg is Script {
                 gracePeriod: 2 days
             })
         );
-        
+
         timelock.setSelector(
             mediumPeg.updateGlobalDebtCap.selector,
             CallConfig({
@@ -169,7 +182,7 @@ contract DeployMediumPeg is Script {
                 gracePeriod: 3 days
             })
         );
-        
+
         timelock.setSelector(
             mediumPeg.updateMintCapPerTx.selector,
             CallConfig({
@@ -178,5 +191,5 @@ contract DeployMediumPeg is Script {
                 gracePeriod: 3 days
             })
         );
-    } 
+    }
 }

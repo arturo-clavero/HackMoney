@@ -57,7 +57,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
       case 1:
         return !!state.pegStyle;
       case 2:
-        return state.selectedCollateral.length > 0;
+        return state.pegStyle === "yield" || state.selectedCollateral.length > 0;
       case 3:
         return true;
       case 4:
