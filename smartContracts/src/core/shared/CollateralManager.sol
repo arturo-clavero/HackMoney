@@ -16,6 +16,7 @@ struct CollateralInput {
     address[]   oracleFeeds;
     uint256     LTV;
     uint256     liquidityThreshold;
+    uint256     liquidationBonus;
     uint256     debtCap;
 }
 
@@ -31,7 +32,7 @@ struct CollateralConfig {
     address[]   oracleFeeds;
     uint256     LTV;
     uint256     liquidityThreshold;
-    uint256     debtCap;
+    uint256     liquidationBonus;
 }
 
 /**
@@ -66,7 +67,6 @@ abstract contract CollateralManager is AccessManager {
 
     /// @dev List of all collateral tokens ever registered
     address[] internal globalCollateralSupported;
-
 
     /**
      * @param pegType Determines which collateral modes are allowed.
@@ -106,7 +106,7 @@ abstract contract CollateralManager is AccessManager {
         c.oracleFeeds = updatedCol.oracleFeeds;
         c.LTV = updatedCol.LTV * RiskMath.WAD / 100;
         c.liquidityThreshold = updatedCol.liquidityThreshold * RiskMath.WAD / 100;
-        c.debtCap = updatedCol.debtCap;
+        c.liquidationBonus = (100 + updatedCol.liquidationBonus) * RiskMath.WAD / 100;
     }    
         
     /**

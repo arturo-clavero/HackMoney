@@ -48,7 +48,8 @@ contract DeployArcTestnet is Script {
             oracleFeeds: emptyFeeds,
             LTV: 0,
             liquidityThreshold: 0,
-            debtCap: 2_000_000 ether
+            debtCap: 2_000_000 ether,
+            liquidationBonus: 5
         }));
 
         // 4. Finish setup + transfer ownership

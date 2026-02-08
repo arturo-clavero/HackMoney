@@ -17,16 +17,8 @@ contract HardPegAdapter is IStablePeg {
         peg.deposit(appId, token, amount);
     }
 
-    function depositTo(uint256 appId, address to, address token, uint256 amount) external override {
-        peg.depositTo(appId, to, token, amount);
-    }
-
     function withdrawCollateral(uint256 appId, uint256 amount) external override {
         peg.withdrawCollateral(appId, amount);
-    }
-
-    function withdrawCollateralTo(uint256 appId, address to, uint256 amount) external override {
-        peg.withdrawCollateralTo(appId, to, amount);
     }
 
     function mint(uint256 appId, address to, uint256 amount) external override {

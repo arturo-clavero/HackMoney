@@ -62,25 +62,13 @@ contract HardPeg is AppManager, Security {
      * @param rawAmount Amount of collateral tokens to deposit
      */
     function deposit(uint256 id, address token, uint256 rawAmount) external {
-        depositTo(id, msg.sender, token, rawAmount); 
-    }
-
-    /**
-     * @notice Deposit collateral to a sepcific account into the app
-     * @dev Only supported collateral is accepted. `rawAmount` is in token units.
-     * @param id App ID
-     * @param to Account who will own the deposited tokens
-     * @param token Collateral token address
-     * @param rawAmount Amount of collateral tokens to deposit
-     */
-    function depositTo(uint256 id, address to, address token, uint256 rawAmount) public {
         if (!_isAppCollateralAllowed(id, token))
             revert Error.CollateralNotSupportedByApp();
         if (rawAmount == 0)
             revert Error.InvalidAmount();
-        IERC20(token).safeTransferFrom(to, address(this), rawAmount);
+        IERC20(token).safeTransferFrom(msg.sender, address(this), rawAmount);
         uint256 valueAmount = rawAmount / globalCollateralConfig[token].scale;
-        vault[id][to] += valueAmount;
+        vault[id][msg.sender] += valueAmount;
         globalPool[token] += valueAmount;
         totalPool += valueAmount;
     }
@@ -101,7 +89,7 @@ contract HardPeg is AppManager, Security {
         valueAmount = rawAmount / RiskMath.DEFAULT_COIN_SCALE;
 
         vault[id][msg.sender] = maxValue - valueAmount;
-        totalSupply += valueAmount;
+        _beforeMint(rawAmount);
         _mintAppToken(id, to, rawAmount);
     }
 
@@ -115,8 +103,8 @@ contract HardPeg is AppManager, Security {
         if (rawAmount == 0)
             revert Error.InvalidAmount();
         uint256 valueAmount = rawAmount / RiskMath.DEFAULT_COIN_SCALE;
-        totalSupply -= valueAmount;
         _burnAppToken(id, rawAmount);
+        _afterBurn(rawAmount);
         _sendCollateralBasket(valueAmount, msg.sender);
     }
 
@@ -125,21 +113,13 @@ contract HardPeg is AppManager, Security {
      * @param id App ID
      * @param valueAmount Amount of value units to withdraw. Use `type(uint256).max` to withdraw all available.
      */
-    function withdrawCollateralTo(uint256 id, address to, uint256 valueAmount) public {
+    function withdrawCollateral(uint256 id, uint256 valueAmount) public {
+        _beforeWithdraw();
         uint256 maxValue = vault[id][msg.sender];
         if (valueAmount == type(uint256).max)
             valueAmount = maxValue;
         vault[id][msg.sender] = maxValue - valueAmount;
-        _sendCollateralBasket(valueAmount, to);
-    }
-
-      /**
-     * @notice Withdraw collateral directly from the vault
-     * @param id App ID
-     * @param valueAmount Amount of value units to withdraw. Use `type(uint256).max` to withdraw all available.
-     */
-    function withdrawCollateral(uint256 id, uint256 valueAmount) external {
-        withdrawCollateralTo(id, msg.sender, valueAmount);
+        _sendCollateralBasket(valueAmount, msg.sender);
     }
 
     /// @notice Returns total value of all collateral across apps

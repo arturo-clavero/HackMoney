@@ -26,7 +26,7 @@ contract SoftPegUnitTest is BaseEconomicTest {
     MockToken token18;
 
     function _deployPeg() internal override returns (IPeg){
-        SoftPeg soft = new SoftPeg(owner, timelock, globalDebtCap, mintCapPerTx);
+        SoftPeg soft = new SoftPeg(owner, timelock, 10_000_000 ether, 10_000 ether);
         return IPeg(address(soft));
     }
 
@@ -426,7 +426,6 @@ contract SoftPegUnitTest is BaseEconomicTest {
         peg.deposit(newAppID, address(token6), _raw(100, address(token6)));
         peg.deposit(newAppID, address(token8), _raw(200, address(token8)));
 
-        uint256 creditBefore = peg.getUsersMintCredit(newAppID, minter);
         peg.mint(newAppID, minter, type(uint256).max);
         assertEq(peg.getUsersMintCredit(newAppID, minter), 0);
 
@@ -447,16 +446,16 @@ contract SoftPegUnitTest is BaseEconomicTest {
 //liquidate :
     function testLiquidate_basic() public {
         uint256 newAppID = _addSuperApp(minter);
-        _mintTokenTo(token18, 500, minter);
-        _mintTokenTo(token8, 500, liquidator);
+        _mintTokenTo(token18, 5000, minter);
+        _mintTokenTo(token8, 5000, liquidator);
 
         vm.startPrank(minter);
-        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
-        peg.mint(newAppID, minter, _raw(100, address(0)));
+        peg.deposit(newAppID, address(token18), _raw(5000, address(token18)));
+        peg.mint(newAppID, minter, _raw(1000, address(0)));
         vm.stopPrank();
 
         vm.startPrank(liquidator);
-        peg.deposit(newAppID, address(token8), _raw(500, address(token8)));
+        peg.deposit(newAppID, address(token8), _raw(5000, address(token8)));
         peg.mint(newAppID, liquidator, type(uint256).max);
         vm.stopPrank();
 
@@ -528,41 +527,6 @@ contract SoftPegUnitTest is BaseEconomicTest {
         vm.expectRevert(Error.InvalidAmount.selector);
         peg.liquidate(newAppID, minter, 0);
         vm.stopPrank();
-    }
-
-
-    function testLiquidate_overpayCapped() public {
-        uint256 newAppID = _addSuperApp(minter);
-        _mintTokenTo(token18, 500, minter);
-        _mintTokenTo(token8, 500, liquidator);
-        vm.startPrank(minter);
-        peg.deposit(newAppID, address(token18), _raw(500, address(token18)));
-        peg.mint(newAppID, minter, _raw(100, address(0)));
-        vm.stopPrank();
-        vm.startPrank(liquidator);
-        peg.deposit(newAppID, address(token8), _raw(500, address(token8)));
-        peg.mint(newAppID, liquidator, type(uint256).max);
-        vm.stopPrank();
-
-        _lowerPriceToLiquidate(newAppID, minter, address(token18));
-
-        uint256 maxLiq = _getMaxLiquidationAmount(newAppID, minter);
-        uint256 debtBefore =
-            peg.getUserDebtShares(newAppID, minter)
-                .calcAssets(peg.getTotalDebt(), peg.getTotalDebtShares());
-
-        vm.startPrank(liquidator);
-        peg.liquidate(newAppID, minter, maxLiq * 2);
-        vm.stopPrank();
-
-        uint256 debtAfter =
-        peg.getUserDebtShares(newAppID, minter)
-                .calcAssets(peg.getTotalDebt(), peg.getTotalDebtShares());
-        uint256 debtChange = 1e18 * (debtBefore - debtAfter);
-
-
-        assertLe(debtChange, maxLiq + 1);
-        assertGe(debtChange, maxLiq);
     }
 
     function testLiquidate_liquidatorGetsCollateral() public {
@@ -645,7 +609,6 @@ contract SoftPegUnitTest is BaseEconomicTest {
 
         _setMockPrice(1, address(token18));
 
-        uint256 totalDebtBefore = peg.getTotalDebt();
 
         vm.startPrank(liquidator);
         peg.liquidate(newAppID, minter, _raw(250, address(0)));

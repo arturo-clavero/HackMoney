@@ -16,9 +16,7 @@ interface IStablePeg {
     
 //interactions
     function deposit(uint256 appId, address token, uint256 amount) external;
-    function depositTo(uint256 appId, address to, address token, uint256 rawAmount) external;
     function withdrawCollateral(uint256 appId, uint256 amount) external;
-    function withdrawCollateralTo(uint256 appId, address to, uint256 amount) external;
     function mint(uint256 appId, address to, uint256 amount) external;
     function redeem(uint256 appId, uint256 amount) external;
 

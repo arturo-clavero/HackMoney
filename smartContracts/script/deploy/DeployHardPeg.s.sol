@@ -62,6 +62,7 @@ contract DeployHardPeg is Script {
                 oracleFeeds: feeds,
                 LTV: 100,
                 liquidityThreshold: 100,
+                liquidationBonus: 5,
                 debtCap: 200_000 ether
             }));
         }
@@ -75,6 +76,7 @@ contract DeployHardPeg is Script {
                 oracleFeeds: feeds,
                 LTV: 100,
                 liquidityThreshold: 100,
+                liquidationBonus: 5,
                 debtCap: 200_000 ether
             }));
 
@@ -86,6 +88,7 @@ contract DeployHardPeg is Script {
                 oracleFeeds: feeds,
                 LTV: 100,
                 liquidityThreshold: 100,
+                liquidationBonus: 5,
                 debtCap: 200_000 ether
             }));
 
@@ -97,6 +100,7 @@ contract DeployHardPeg is Script {
                 oracleFeeds: feeds,
                 LTV: 100,
                 liquidityThreshold: 100,
+                liquidationBonus: 5,
                 debtCap: 200_000 ether
             }));
         }

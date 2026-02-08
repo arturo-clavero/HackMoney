@@ -41,7 +41,7 @@ abstract contract BaseEconomicTest is Test {
 
     // child test decides WHICH peg
     function _deployPeg() internal virtual returns (IPeg){
-        HardPeg hard = new HardPeg(owner, timelock, globalDebtCap, mintCapPerTx);
+        HardPeg hard = new HardPeg(owner, timelock, 10_000_000 ether, 10_000_000 ether);
         return IPeg(address(hard));
     }
 
@@ -272,7 +272,7 @@ abstract contract BaseEconomicTest is Test {
         uint256 price = RiskMath.safeMulDiv(
             debt,
             1e8,
-            RiskMath.safeMulDiv(collateralAmount, liqThreshold, 1e18)
+            RiskMath.safeMulDiv(collateralAmount * 2, liqThreshold, 1e18)
         );
 
         _setMockPrice(price - 1, token);

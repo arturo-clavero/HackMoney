@@ -24,5 +24,5 @@ library Error {
     error TxFailed();
     error InvalidTarget();
     error InvalidSelector();
-
+    error DebtTooSmall();
 }   

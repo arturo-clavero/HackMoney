@@ -16,16 +16,8 @@ contract MediumPegAdapter is IStablePeg {
         peg.deposit(appId, amount);
     }
 
-    function depositTo(uint256 appId, address to, address, uint256 amount) external override {
-        peg.depositTo(appId, to, amount);
-    }
-
     function withdrawCollateral(uint256 appId, uint256) external override {
         peg.withdrawCollateral(appId);
-    }
-
-    function withdrawCollateralTo(uint256 appId, address to, uint256) external override {
-        peg.withdrawCollateralTo(appId, to);
     }
 
     function mint(uint256 appId, address to, uint256 amount) external override {

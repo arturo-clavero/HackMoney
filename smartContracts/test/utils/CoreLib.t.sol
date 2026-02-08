@@ -73,6 +73,7 @@ library core {
             oracleFeeds: feeds,
             LTV: 50, // 50 % -> deposit 300 I can mint 150
             liquidityThreshold: 80,
+            liquidationBonus: 5,
             debtCap: 1000
         });
     }
@@ -92,6 +93,7 @@ library core {
             oracleFeeds: feeds,
             LTV: 50,
             liquidityThreshold: 80,
+            liquidationBonus: 5,
             debtCap: 1000
         });
     }
@@ -116,6 +118,7 @@ library core {
             oracleFeeds: feeds,
             LTV: 50,
             liquidityThreshold: 80,
+            liquidationBonus: 5,
             debtCap: 1000
         });
     }

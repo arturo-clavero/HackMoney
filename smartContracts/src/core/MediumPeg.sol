@@ -59,23 +59,14 @@ import {Error} from "../utils/ErrorLib.sol";
         uint256 appId,
         uint256 assets)
      external {
-        depositTo(appId, msg.sender, assets);
-    }
-
-    function depositTo(
-        uint256 appId,
-        address to,
-        uint256 assets)
-     public {
-    // @notice vault grows principal stayes unchanged
         address vault = vaults[appId];
         if (vault == address(0)) revert Error.InvalidTokenAddress();
         IERC20 asset = IERC20(IERC4626(vault).asset());
-        asset.safeTransferFrom(to, address(this), assets);
+        asset.safeTransferFrom(msg.sender, address(this), assets);
         asset.approve(vault, assets);
         uint256 shares = IERC4626(vault).deposit(assets, address(this));
         uint256 valueAtDeposit = IERC4626(vault).convertToAssets(shares);
-        Position storage p = positions[appId][to];
+        Position storage p = positions[appId][msg.sender];
         p.principals += valueAtDeposit;
         p.shares += shares;
     }
@@ -93,6 +84,7 @@ import {Error} from "../utils/ErrorLib.sol";
         if (amount > available) revert Error.CapExceeded();
         userDebt[appId][msg.sender] += amount;
         _totalDebtPerApp[appId] += amount;//for redeem
+        _beforeMint(amount);
         _mintAppToken(appId, to, amount);
     }
     //@notice burns to get collateral back 
@@ -104,19 +96,17 @@ import {Error} from "../utils/ErrorLib.sol";
 
         if (userDebt[appId][msg.sender] < amount) revert Error.CapExceeded();
         _burnAppToken(appId, amount);
+        _afterBurn(amount);
         userDebt[appId][msg.sender] -= amount;
         _totalDebtPerApp[appId] -= amount;
         IERC4626(vaults[appId]).withdraw(amount, msg.sender, address(this));
     }
     // @notice user withdraws unused collateral 
     // @dev only if no stablecoin debt exists 
-    function withdrawCollateral(uint256 appId) external {
-        withdrawCollateralTo(appId, msg.sender);
-    }
-
-    function withdrawCollateralTo(uint256 appId, address to) public {
-        Position storage p = positions[appId][to];
-        if (userDebt[appId][to] != 0) revert Error.OutstandingDebt();
+    function withdrawCollateral(uint256 appId) public {
+        _beforeWithdraw();
+        Position storage p = positions[appId][msg.sender];
+        if (userDebt[appId][msg.sender] != 0) revert Error.OutstandingDebt();
         uint256 shares = p.shares;
         if (shares == 0) revert Error.InvalidAmount();
 
@@ -125,7 +115,7 @@ import {Error} from "../utils/ErrorLib.sol";
 
         IERC4626(vaults[appId]).redeem(
             shares,
-            to,
+            msg.sender,
             address(this)
         );
     }

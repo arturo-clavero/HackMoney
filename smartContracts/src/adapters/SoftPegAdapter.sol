@@ -15,20 +15,10 @@ contract SoftPegAdapter is IStablePeg {
         peg.deposit(appId, token, amount);
     }
 
-    function depositTo(uint256 appId, address to, address token, uint256 amount) external override {
-        peg.depositTo(appId, to, token, amount);
-    }
-
     function withdrawCollateral(uint256 appId, uint256 amount) external override {
         address[] memory colUsed = peg.getUsersColUsed(appId, msg.sender);
         require(colUsed.length > 0, "No collateral");
         peg.withdrawCollateral(appId, colUsed[0], amount);
-    }
-
-    function withdrawCollateralTo(uint256 appId, address to, uint256 amount) external override {
-        address[] memory colUsed = peg.getUsersColUsed(appId, msg.sender);
-        require(colUsed.length > 0, "No collateral");
-        peg.withdrawCollateralTo(appId, to, colUsed[0], amount);
     }
 
     function mint(uint256 appId, address to, uint256 amount) external override {
@@ -36,7 +26,7 @@ contract SoftPegAdapter is IStablePeg {
     }
 
     function redeem(uint256 appId, uint256 amount) external override {
-        peg.redeem(appId, amount);
+        peg.repay(appId, amount);
     }
 
 //shared logic

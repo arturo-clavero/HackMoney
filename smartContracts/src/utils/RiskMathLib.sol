@@ -11,7 +11,9 @@ library RiskMath {
 
     /// @notice Internal scaling factor for value-to-raw conversions
     uint256 internal constant DEFAULT_COIN_SCALE = 1e18;
-    
+
+    uint256 internal constant MIN_DEBT_VALUE = 5e18;
+
     function calcNewShare(
         uint256 assetChange,     
         uint256 totalAssets, 
