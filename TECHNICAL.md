@@ -10,6 +10,7 @@
 6. [LI.FI Integration](#6-lifi-integration)
 7. [ENS Integration](#7-ens-integration)
 8. [Frontend Architecture](#8-frontend-architecture)
+9. [Product Feedback for Circle](#9-product-feedback-for-circle)
 
 ---
 
@@ -512,6 +513,26 @@ The frontend uses Reown AppKit (successor to WalletConnect) for wallet connectio
 - Social login via Reown
 
 Chain switching is handled automatically — when a user selects a token on a different chain, the frontend prompts for a chain switch before executing the LI.FI route.
+
+---
+
+## 9. Product Feedback for Circle
+
+### What Works Well
+
+**Bridge Kit + viem integration**: The `createBridgeKit()` + `viemAdapter()` pattern integrates cleanly into a wagmi/viem stack. Having the full CCTP lifecycle (approve, burn, attest, mint) abstracted into a single `kit.bridge()` call reduces integration complexity significantly.
+
+**Arc Testnet EVM compatibility**: Standard Foundry/viem tooling works without modifications. Deploying Solidity contracts to Arc is identical to deploying to any other EVM chain — zero onboarding friction.
+
+**USDC as native gas**: For a stablecoin-native protocol, users never needing to acquire a volatile gas token is a meaningful UX improvement. Transaction cost accounting in USD terms is natural for this domain.
+
+**Arc as USDC consolidation point**: Deploying our HardPeg vault on Arc means deposits from any CCTP-connected chain pool into one place. This avoids fragmenting vault liquidity across chains, which is the default problem for multi-chain DeFi.
+
+### Suggestions for Improvement
+
+**Bridge Kit testnet chain coverage**: The set of testnet chains supported by Bridge Kit is smaller than mainnet. Broader testnet support (e.g., Sepolia <-> Arc Testnet) would make it easier to test full cross-chain flows during development.
+
+**Gateway Hooks for custom contracts**: Gateway Hooks (atomic mint + contract call) would be ideal for our use case — a user could deposit USDC on Ethereum and have it atomically mint on Arc and deposit into our vault in one transaction. Currently this requires two separate user actions (bridge, then deposit). Documentation and testnet support for integrating custom contracts with Hooks would be very valuable.
 
 ---
 
