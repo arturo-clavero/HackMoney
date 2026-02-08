@@ -15,7 +15,8 @@ import {
   ARC_CHAIN_ID,
   ARBITRUM_CHAIN_ID,
 } from "@/contracts/addresses";
-import { erc20Abi, type Address } from "viem";
+import { createPublicClient, http, erc20Abi, type Address } from "viem";
+import { arbitrum } from "viem/chains";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,8 +68,11 @@ function InstancesList() {
   const { address } = useAppKitAccount();
 
   const arcClient = usePublicClient({ chainId: ARC_CHAIN_ID });
-  const arbClient = usePublicClient({ chainId: ARBITRUM_CHAIN_ID });
-  const clientByChain: Record<number, ReturnType<typeof usePublicClient>> = {
+  const arbClient = createPublicClient({
+    chain: arbitrum,
+    transport: http("https://arb1.arbitrum.io/rpc"),
+  });
+  const clientByChain: Record<number, ReturnType<typeof usePublicClient> | typeof arbClient> = {
     [ARC_CHAIN_ID]: arcClient,
     [ARBITRUM_CHAIN_ID]: arbClient,
   };
@@ -133,7 +137,7 @@ function InstancesList() {
     return () => {
       cancelled = true;
     };
-  }, [address, arcClient, arbClient]);
+  }, [address, arcClient]);
 
   // Watch for NEW events on HardPeg (Arc)
   const arcAddresses = getContractAddress(ARC_CHAIN_ID);
