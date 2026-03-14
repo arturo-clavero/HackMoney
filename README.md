@@ -1,563 +1,297 @@
-# StabiFi — Technical Documentation
+# ARC Protocol
 
-## Table of Contents
+A multi-peg stablecoin infrastructure for permissioned, app-scoped stablecoins with configurable collateral risk tiers.
 
-1. [Project Overview](#1-project-overview)
-2. [Architecture Overview](#2-architecture-overview)
-3. [Smart Contract Architecture](#3-smart-contract-architecture)
-4. [Cross-Chain Deposit Flows](#4-cross-chain-deposit-flows)
-5. [Circle Arc Integration](#5-circle-arc-integration)
-6. [LI.FI Integration](#6-lifi-integration)
-7. [ENS Integration](#7-ens-integration)
-8. [Frontend Architecture](#8-frontend-architecture)
-9. [Product Feedback for Circle](#9-product-feedback-for-circle)
+![Solidity](https://img.shields.io/badge/Solidity-%5E0.8.13-blue) ![Foundry](https://img.shields.io/badge/Build-Foundry-orange) ![OpenZeppelin](https://img.shields.io/badge/OpenZeppelin-v5.5.0-purple)
 
 ---
 
-## 1. Project Overview
+## Overview
 
-StabiFi is a **multi-chain stablecoin factory** that lets anyone deploy their own permissioned, collateral-backed stablecoin instance. Each instance is an isolated ERC-20 token with configurable collateral backing, access controls, and peg mechanics.
+ARC Protocol is a singleton stablecoin engine that allows third-party apps to deploy isolated, permissioned ERC-20 stablecoins without owning or managing risk infrastructure. Each app registers a configuration against a shared peg module — which handles oracle pricing, collateral accounting, health checks, and liquidations.
 
-### The Problem
+The protocol routes apps to one of three peg designs based on the collateral types they intend to support. This separation is intentional: it groups apps by risk profile while keeping the risk engine centralized and auditable.
 
-Creating a stablecoin today requires building an entire protocol from scratch — collateral management, minting logic, access control, cross-chain liquidity, and a frontend. Existing stablecoins (USDT, USDC, DAI) serve broad markets but cannot be tailored to specific communities, organizations, or use cases like internal payroll tokens, community currencies, or application-scoped credits.
-
-### The Solution
-
-StabiFi provides a **factory pattern** where any user can deploy a stablecoin instance in minutes through a guided wizard. Each instance gets:
-
-- A **dedicated ERC-20 token** (PrivateCoin) with permissioned minting, holding, and transfers
-- A **collateral vault** backed by stablecoins, yield-bearing assets, or mixed baskets
-- **Cross-chain deposit flows** — users can fund vaults from any token on any EVM chain
-- **Configurable governance** — the instance owner controls who can mint, hold, and transfer
-
-### Peg Designs
-
-| Peg Type | Collateral | Minting | Chain | Use Case |
-|----------|-----------|---------|-------|----------|
-| **HardPeg** | Mixed stablecoin basket (USDC, USDT, etc.) | 1:1 against free collateral | Arc | Payment tokens, internal credits |
-| **MediumPeg (Yield)** | Aave waArbUSDCn (ERC-4626 vault) | 1:1 against deposited principal; yield accrues separately | Arbitrum | Treasury tokens, yield-bearing credits |
-| **SoftPeg** | Volatile assets (ETH, BTC) with oracle feeds | LTV-based mint credit with liquidation | Planned | Synthetic stablecoins |
+Apps do not deploy their own risk contracts. Instead, they deploy a lightweight `PrivateCoin` ERC-20 with app-specific access control, while the shared peg module enforces all economic invariants.
 
 ---
 
-## 2. Architecture Overview
+## Key Features
 
-### System Architecture Diagram
+- Three isolated peg modules (Hard / Medium / Soft) with collateral-type-gated instantiation
+- Per-app `PrivateCoin` ERC-20 with bitmask-enforced mint, hold, and transfer permissions
+- ERC-20 Permit support on all app tokens for gasless flows and account abstraction
+- Share-based collateral and debt accounting to handle multi-token pools without oracle dependency (HardPeg)
+- Chainlink oracle integration with staleness, round completeness, and negative-price guards (SoftPeg)
+- Per-function timelock with configurable delay and grace period windows
+- Two-phase deployment: owner-controlled setup phase transitions to timelock-only governance
+- Role bitmask system — a single `uint256` encodes multi-role membership per address
+- Invariant and agent-based fuzz test suite with conservation and solvency assertions
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                              USER                                        │
-│                   (Any wallet, any EVM chain)                            │
-└───────────────────────────┬──────────────────────────────────────────────┘
-                            │
-              ┌─────────────▼──────────────┐
-              │      Next.js Frontend       │
-              │  (wagmi + viem + AppKit)    │
-              │                            │
-              │  ┌────────┐  ┌──────────┐  │
-              │  │ Create │  │ Instance │  │
-              │  │ Wizard │  │  Detail  │  │
-              │  └────────┘  └──────────┘  │
-              └──┬────────────┬────────┬───┘
-                 │            │        │
-       ┌─────────▼──┐  ┌─────▼────┐  ┌▼──────────────┐
-       │  LI.FI SDK  │  │  Circle  │  │ Direct RPC    │
-       │  (swap +    │  │  Bridge  │  │ (deposit,     │
-       │   bridge)   │  │  Kit     │  │  mint, redeem)│
-       └──────┬──────┘  └────┬─────┘  └───────┬───────┘
-              │              │                 │
-    ┌─────────▼──────────────▼─────────────────▼────────────────────┐
-    │                    BLOCKCHAIN LAYER                            │
-    │                                                               │
-    │  ┌─────────────┐    Circle CCTP     ┌──────────────────────┐ │
-    │  │ Arbitrum     │◄─────────────────►│    Arc (Circle L1)    │ │
-    │  │ Chain 42161  │    (burn-mint)    │    Chain 5042002      │ │
-    │  │              │                   │                       │ │
-    │  │ ┌──────────┐ │                   │  ┌────────────────┐   │ │
-    │  │ │MediumPeg │ │                   │  │   HardPeg      │   │ │
-    │  │ │  + Aave  │ │                   │  │ (stablecoin    │   │ │
-    │  │ │waArbUSDCn│ │                   │  │  basket vault) │   │ │
-    │  │ └──────────┘ │                   │  └────────────────┘   │ │
-    │  └─────────────┘                    └──────────────────────┘ │
-    │                                                               │
-    │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐    │
-    │  │Ethereum│ │  Base  │ │Polygon │ │  OP    │ │ 60+    │    │
-    │  │        │ │        │ │        │ │Mainnet │ │ chains │    │
-    │  └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘    │
-    │      └──────────┴──────────┴──────────┴──────────┘          │
-    │              LI.FI routes (27 bridges, 31 DEXs)              │
-    └──────────────────────────────────────────────────────────────┘
+---
+
+## Tech Stack
+
+| Category | Technology |
+|---|---|
+| Language | Solidity ^0.8.13 |
+| Build & Test | Foundry (Forge, Anvil, Cast) |
+| Token Standards | ERC-20, ERC-20 Permit, ERC-4626 |
+| Access Control | Custom bitmask roles (no OZ AccessControl) |
+| Oracle | Chainlink AggregatorV3 |
+| Math | OpenZeppelin `Math.mulDiv` (overflow-safe) |
+| Dependencies | OpenZeppelin v5.5.0, forge-std v1.14.0 |
+
+---
+
+## Protocol Architecture
+
+### Peg Selection by Collateral Type
+
+App instances are routed to a peg module at registration time based on the collateral types they configure. The peg type is immutable per deployment.
+
+```mermaid
+flowchart LR
+    App -->|MODE_STABLE only| HardPeg
+    App -->|MODE_STABLE + MODE_YIELD| MediumPeg
+    App -->|MODE_STABLE + MODE_VOLATILE| SoftPeg
 ```
 
-### Cross-Chain Deposit Flow (HardPeg on Arc)
+### Shared Contract Inheritance
 
-```
-  User has ETH on Polygon                      Arc Testnet
-  ─────────────────────                    ────────────────────
-         │                                        │
-         │  1. Select token + amount              │
-         ▼                                        │
-  ┌──────────────┐                                │
-  │  LI.FI SDK   │  Quotes swap to USDC          │
-  │  GET /quote  │  across Arbitrum + Base        │
-  └──────┬───────┘  (picks best output)           │
-         │                                        │
-         │  2. Execute winning route              │
-         ▼                                        │
-  ┌──────────────┐                                │
-  │  LI.FI Route │  ETH(Polygon) → USDC(Arb)     │
-  │  Execution   │  via bridge + DEX              │
-  └──────┬───────┘                                │
-         │                                        │
-         │  3. Bridge USDC to Arc                 │
-         ▼                                        │
-  ┌──────────────┐                                │
-  │ Circle CCTP  │  burn on Arbitrum              │
-  │ Bridge Kit   │─────────────────────────►  mint on Arc
-  └──────────────┘                                │
-                                                  │
-                              4. Approve + deposit│
-                                                  ▼
-                                           ┌──────────────┐
-                                           │   HardPeg    │
-                                           │  .deposit()  │
-                                           │              │
-                                           │ vault[user]  │
-                                           │  += amount   │
-                                           └──────────────┘
+All three peg modules inherit from the same shared abstract layer. Core risk logic lives in the peg-specific contract; everything else is shared.
+
+```mermaid
+flowchart TD
+    AccessManager --> CollateralManager
+    CollateralManager --> AppManager
+    AccessManager --> Security
+    CollateralManager --> Oracle
+
+    AppManager --> HardPeg
+    AppManager --> MediumPeg
+    Security --> HardPeg
+    Security --> MediumPeg
+    Oracle --> SoftPeg
+    AppManager --> SoftPeg
+    Security --> SoftPeg
 ```
 
-### Cross-Chain Deposit Flow (MediumPeg on Arbitrum)
+### App Instance Lifecycle
 
-```
-  User has DAI on Optimism                  Arbitrum
-  ────────────────────────                 ──────────────
-         │                                       │
-         │  1. Select token + amount             │
-         ▼                                       │
-  ┌──────────────┐                               │
-  │  LI.FI SDK   │  Quote: DAI(OP)              │
-  │  GET /quote  │  → waArbUSDCn(Arb)           │
-  └──────┬───────┘                               │
-         │                                       │
-         │  2. LI.FI executes:                   │
-         │     bridge to Arb + swap to USDC      │
-         │     + deposit into Aave vault         │
-         ▼                                       │
-  ┌──────────────┐                               │
-  │  LI.FI +     │  Single route delivers        │
-  │  Composer    │  waArbUSDCn vault tokens ────►│
-  └──────────────┘                               │
-                                                 │
-                             3. Approve + deposit│
-                                                 ▼
-                                          ┌──────────────┐
-                                          │  MediumPeg   │
-                                          │.depositShares│
-                                          │              │
-                                          │  principal   │
-                                          │  + shares    │
-                                          │  tracked     │
-                                          └──────────────┘
+```mermaid
+flowchart LR
+    AppConfig --> Protocol
+    Protocol -->|stores config| AppState
+    Protocol -->|deploys| PrivateCoin
+    PrivateCoin --> AccessPermissions
+    PrivateCoin --> ActionPermissions
 ```
 
 ---
 
-## 3. Smart Contract Architecture
+## Peg Designs
 
-### Contract Inheritance
+### HardPeg
+Accepts only `MODE_STABLE` collateral. Mints at a 1:1 value ratio against deposited collateral. No oracles, no liquidations. Redemption returns a pro-rata basket of all collateral types held by the protocol. Internal accounting uses a `value unit` abstraction, normalizing all token amounts by their decimal scale.
+
+### MediumPeg
+Accepts `MODE_STABLE + MODE_YIELD` collateral (ERC-4626 vaults). Deposits store both the share count and the principal value at deposit time. Minting is capped to the fixed principal, not the current vault value — preventing debt inflation as yield accrues. Yield above principal is claimable by the depositor on withdrawal.
+
+### SoftPeg
+Accepts `MODE_STABLE + MODE_VOLATILE` collateral with Chainlink price feeds. Implements full CDP mechanics: share-based collateral vaults, debt share accounting, health factor calculation, and partial liquidations with tiered close factors based on position health.
+
+---
+
+## Core Subsystems
+
+### AccessManager
+Roles stored as bit flags in a single `uint256`. Multi-role membership costs one mapping slot. The `onlyTimeLock` modifier is phase-sensitive: before `finishSetUp()` it allows the owner; after, it only allows the timelock contract. This enables a clean deployment phase without timelock latency.
+
+### CollateralManager
+Global collateral registry. Each token is assigned a non-zero sequential ID used for bitmask lookups downstream. Collateral modes are bitmask constants (`MODE_STABLE`, `MODE_VOLATILE`, `MODE_YIELD`, `MODE_ACTIVE`). The allowed mode set is immutable per peg deployment, enforced via a constructor-time `immutable` bitmask.
+
+### AppManager
+Factory for app instances. On `newInstance()`, a `PrivateCoin` is deployed and the app's allowed collateral set is computed as a bitmask of collateral IDs. Collateral eligibility is checked in O(1) by testing a bit against `tokensAllowed`. Enforces that at least one valid collateral is set before registration completes.
+
+### PrivateCoin
+Non-standard ERC-20. Intentional deviations from the standard:
+- `mint` and `burn` restricted to the protocol engine address
+- `transfer` and `transferFrom` enforce destination permission checks
+- Allowances are bypassed in the engine's burn/transfer flows; standard approvals and ERC-20 Permit remain available for user-initiated flows
+- Liquidator role bypasses `from`/`to` permission checks at mint time (self-mint only) but cannot transfer tokens externally
+
+### Oracle
+Wraps Chainlink `AggregatorV3`. Validates: positive price, freshness within `STALENESS_THRESHOLD` (24h), and round completeness (`answeredInRound >= roundId`). Exposes a non-reverting `getPriceWithStatus()` for off-chain monitoring.
+
+### Security
+Protocol-level circuit breakers. Uses EVM transient storage (`TSTORE`/`TLOAD`, EIP-1153) to track per-transaction mint volume, enforcing `mintCapPerTx` without persistent state. Pausing is instantaneous by the governor; unpausing is timelock-delayed. Global debt cap enforced at mint time.
+
+### Timelock
+Function-level timelock with per-selector configuration. Each sensitive function selector maps to a role requirement, delay, and grace period. Queue, cancel, and execute are separate transactions. The owner can cancel any queued transaction as an emergency override.
+
+---
+
+## Collateral & Debt Accounting (SoftPeg)
+
+Both collateral and debt use a share/asset model (analogous to ERC-4626) to correctly handle pool growth and rounding.
 
 ```
-AccessManager          ← Ownership, timelock, setup gating
-    │
-CollateralManager      ← Global collateral registry, oracle feeds, LTV, debt caps
-    │
-AppManager             ← Instance factory, PrivateCoin deployment, event registry
-    │
-Security               ← Global/per-tx mint caps, debt tracking
-    │
-    ├── HardPeg        ← 1:1 stablecoin basket, pro-rata withdrawals     [Arc]
-    ├── MediumPeg      ← ERC-4626 yield vault, principal-based minting   [Arbitrum]
-    └── SoftPeg        ← LTV-based volatile collateral (planned)
+newShare = (assetChange × totalShares) / totalAssets   // first deposit: 1:1
+assets   = (shares × totalAssets) / totalShares
 ```
 
-### PrivateCoin (App-Scoped ERC-20)
+Health factor uses `liquidityThreshold` (distinct from LTV) to determine the maximum debt a position can sustain:
 
-Each stablecoin instance deploys its own `PrivateCoin` contract — an ERC-20 + ERC-2612 (Permit) token with:
+```
+HF = (Σ collateralValue_i × liquidityThreshold_i) / totalDebt
+```
 
-- **Bitmask-based permissions**: `MINT`, `HOLD`, `TRANSFER_DEST` — each user and the app owner gets a bitmask controlling what actions they can perform
-- **Engine-restricted minting/burning**: Only the protocol peg contract (HardPeg, MediumPeg) can mint or burn tokens
-- **Destination-restricted transfers**: Tokens can only be transferred to addresses with the `HOLD` permission
-- **Meta-transaction support**: ERC-2612 Permit enables gasless approvals
+Liquidation triggers when `HF < 1.0 WAD`. Close factor is tiered by health severity:
 
-This design enables compliant, gated circulation where the instance owner controls who participates.
+| HF Range | Max Closeable |
+|---|---|
+| < 0.75 | 100% |
+| 0.75 – 0.90 | 50% |
+| ≥ 0.90 | 25% |
 
-### Key Operations
+---
 
-| Operation | HardPeg (Arc) | MediumPeg (Arbitrum) |
-|-----------|--------------|---------------------|
-| **Deposit** | `deposit(appId, token, amount)` — adds collateral to user's vault position at 1:1 value | `deposit(appId, assets)` — deposits USDC into Aave vault, tracks principal + shares |
-| **Mint** | `mint(appId, to, amount)` — mints PrivateCoin 1:1 against free collateral | `mint(appId, to, amount)` — mints against principal; debt tracked separately |
-| **Redeem** | `redeam(token, amount)` — burns PrivateCoin, returns pro-rata collateral basket | `redeam(stablecoin, amount)` — burns token, reduces debt, withdraws from Aave |
-| **Withdraw** | `withdrawCollateral(appId, value)` — withdraws pro-rata basket of unused collateral | `withdrawCollateral(appId)` — requires zero debt; returns all shares as USDC |
+## Key Design Decisions
 
-### Collateral Configuration
+**Singleton peg per collateral tier, not per app.** A shared risk engine concentrates oracle validation, debt accounting, and liquidation logic in one auditable contract. Apps inherit security guarantees without deploying independent risk contracts.
 
-```solidity
-struct CollateralConfig {
-    uint256 id;                 // Unique bitmask position (1-indexed)
-    address tokenAddress;       // ERC-20 address
-    uint256 decimals;           // Token decimals (6 for USDC, 18 for ETH)
-    uint256 scale;              // 10^decimals for value normalization
-    uint256 mode;               // STABLE | VOLATILE | YIELD bitmask
-    address[] oracleFeeds;      // Chainlink price feeds
-    uint256 LTV;                // Loan-to-value ratio (0–100)
-    uint256 liquidityThreshold; // Minimum liquidity requirement
-    uint256 debtCap;            // Maximum debt against this collateral
-}
+**PrivateCoin per app rather than shared balances.** Storage for per-app user permission sets is large and app-specific. Offloading it to per-app contracts avoids storage bloat in the core protocol. Merkle proofs were considered but rejected: they increase gas cost per token operation and degrade UX.
+
+**Bitmask roles and collateral permissions.** A single `uint256` encodes full role membership and token permission sets. Collateral eligibility for an app is a single bitwise `&` against the protocol's registered collateral IDs — O(1) regardless of registry size.
+
+**Two-phase deployment (`isSetUp` flag).** Allows the deployer to register collateral and configure protocol parameters atomically without timelock delays, then transfer ownership and lock governance. Eliminates the bootstrapping attack surface where protocol state is partially configured.
+
+**Transient storage for per-tx mint cap.** `TSTORE`/`TLOAD` tracks cumulative mints within a single transaction without writing to persistent storage. This prevents multi-call batch minting abuse at zero net gas cost for the happy path.
+
+**Adapters over a unified interface.** Each peg module exposes slightly different function signatures (e.g., `HardPeg.withdrawCollateral` takes a value amount; `SoftPeg.withdrawCollateral` takes a token and value). Adapter contracts implement the common `IStablePeg` interface for frontend consumers, absorbing the differences cleanly.
+
+---
+
+## Project Structure
+
+```
+src/
+  core/
+    HardPeg.sol            # Stable-only 1:1 peg, no oracles
+    MediumPeg.sol          # ERC-4626 yield collateral peg
+    SoftPeg.sol            # Volatile collateral peg with liquidations
+    shared/
+      AccessManager.sol    # Bitmask roles, setup phase, ownership transfer
+      CollateralManager.sol# Global collateral registry and config
+      AppManager.sol       # App instance factory, PrivateCoin deployment
+      Oracle.sol           # Chainlink wrapper with safety validation
+      Security.sol         # Pause controls, global debt cap, tx mint cap
+  adapters/
+    IStablePeg.sol         # Unified frontend interface
+    HardPegAdapter.sol
+    MediumPegAdapter.sol
+    SoftPegAdapter.sol
+  PrivateCoin.sol          # App-scoped permissioned ERC-20 + Permit
+  Timelock.sol             # Per-selector function-level timelock
+  utils/
+    ActionsLib.sol         # Permission bitmask constants and invariant checks
+    CollateralLib.sol      # Collateral mode flags and peg routing
+    RiskMathLib.sol        # Share math, health factor, safe mulDiv
+    RolesLib.sol           # Protocol role constants
+    ErrorLib.sol           # Centralised custom errors
+
+test/
+  unit/                    # Isolated contract tests via harnesses
+  invariant/               # Agent-based fuzz with conservation/solvency assertions
+  mocks/                   # MockAggregator, MockRandomOracle, MockToken
+  utils/                   # BaseEconomicTest, CoreLib helpers, IPeg interface
+
+script/
+  deploy/                  # Chain-aware deployment scripts per peg type
 ```
 
 ---
 
-## 4. Cross-Chain Deposit Flows
+## Getting Started
 
-The frontend detects the optimal deposit route based on the user's source token and chain:
+### Requirements
 
-| Route | Condition | Steps | Used By |
-|-------|-----------|-------|---------|
-| **Direct** | Token is already the target collateral on the contract's chain | Approve → Deposit | Both |
-| **Bridge** | USDC on a Circle CCTP-supported chain, targeting Arc | CCTP Bridge → Approve → Deposit | HardPeg |
-| **Full** | Any other token/chain, targeting Arc | LI.FI Swap → CCTP Bridge → Approve → Deposit | HardPeg |
-| **LI.FI Composer** | Any token/chain, targeting Arbitrum | LI.FI Swap+Bridge (→ waArbUSDCn) → Approve → Deposit | MediumPeg |
+- [Foundry](https://getfoundry.sh/)
+- `.env` with `PRIVATE_KEY` and `OWNER`
 
-### Multi-Destination Quote Optimization
+### Build
 
-For the **Full** route (HardPeg), the system doesn't just quote one path — it quotes in parallel to multiple intermediary chains and picks the best output:
-
-```
-User: 1000 MATIC on Polygon → HardPeg on Arc
-
-Quote 1: MATIC(Polygon) → USDC(Arbitrum)  = 998.50 USDC  ← winner
-Quote 2: MATIC(Polygon) → USDC(Base)      = 997.20 USDC
-
-Execute: MATIC → USDC(Arbitrum) via LI.FI
-Bridge:  USDC(Arbitrum) → USDC(Arc) via Circle CCTP
-Deposit: USDC into HardPeg vault
+```shell
+forge build
 ```
 
-This parallel quoting via `Promise.allSettled()` ensures users always get the best exchange rate across all available routes.
+### Test
+
+```shell
+forge test
+forge test --match-contract HardPegFuzz   # invariant suite only
+forge snapshot                             # gas benchmarks
+```
+
+### Deploy
+
+```shell
+# Local
+forge script script/deploy/DeployHardPeg.s.sol
+
+# Testnet (simulate, no broadcast)
+forge script script/deploy/DeployHardPeg.s.sol --rpc-url $RPC_SEPOLIA
+
+# Testnet (deploy + verify)
+forge script script/deploy/DeployHardPeg.s.sol --rpc-url $RPC_SEPOLIA --broadcast --verify
+```
+
+ABI is written to `./out/HardPeg.sol/HardPeg.json` on every build.
+
+Deployed on Sepolia: [`0x3fe8A3760C2794A05e7e8EFBF41Ec831A0eb74F9`](https://sepolia.etherscan.io/address/0x3fe8a3760c2794a05e7e8efbf41ec831a0eb74f9#code)
 
 ---
 
-## 5. Circle Arc Integration
+## Security Considerations
 
-### Why Arc as the Settlement Layer
+**Reentrancy.** All state mutations (vault balances, debt shares, pool totals) complete before external token transfers. `SafeERC20` wraps all ERC-20 interactions.
 
-Arc is Circle's purpose-built L1 blockchain, and it provides specific advantages for a stablecoin factory protocol:
+**Oracle manipulation.** `SoftPeg` enforces staleness (24h), round completeness, and price positivity. Single feed per collateral — no fallback oracle is currently implemented (listed as a future improvement).
 
-**1. USDC as Native Gas Token**
-On Arc, USDC is the gas token — not ETH or any volatile asset. This means:
-- Users funding a stablecoin vault never need to acquire a separate gas token
-- Transaction cost accounting is directly in USD terms, which is natural for a stablecoin protocol
-- There is no gas price volatility risk — operational costs are predictable
+**Access control.** `onlyTimeLock` is phase-sensitive and cannot be bypassed post-setup. `finishSetUp()` transitions state permanently; the deployer holds no special privilege after ownership transfer.
 
-**2. Sub-Second Deterministic Finality**
-Arc's Malachite consensus (BFT with rotating proposers) achieves ~780ms average finality at scale. For a deposit-and-mint protocol, this means:
-- Deposits confirm in under a second — no waiting 12+ seconds for block confirmations
-- No reorg risk — once a deposit is finalized, it cannot be reversed at the chain level
-- Mint operations that depend on confirmed collateral can execute immediately
+**Liquidation dust.** `liquidate()` reverts if the computed output share rounds to zero (`LiquidationDust`), preventing griefing via dust amounts that modify state without economic effect.
 
-**3. Cross-Chain USDC Liquidity Hub**
-Arc is a first-class CCTP V2 endpoint, meaning USDC can flow to and from Arc across 30+ connected chains. This makes Arc a natural **consolidation point** for USDC liquidity:
+**Permit surface.** ERC-20 Permit enables gasless approvals but `transferFrom` still enforces destination permission checks regardless of how the allowance was granted.
 
-```
-  Ethereum USDC ──┐
-  Arbitrum USDC ──┤     Circle CCTP
-  Base USDC ──────┤────(burn on source,────► Arc USDC ──► HardPeg Vault
-  Polygon USDC ───┤     mint on Arc)                      (pooled liquidity)
-  Optimism USDC ──┘
-```
-
-By deploying the HardPeg on Arc, all USDC deposits from any chain consolidate into a single liquidity pool on Arc. This avoids the fragmentation problem where vault liquidity is split across chains.
-
-**4. Withdrawal to Any Chain**
-When users redeem their stablecoins and withdraw collateral, the USDC they receive on Arc can be bridged to whichever chain they need via the same CCTP infrastructure. A user who deposited from Ethereum can withdraw to Base if that's where they need funds — the vault's liquidity is chain-agnostic.
-
-**5. Compliance-Ready Architecture**
-Arc's opt-in confidential transfers (amounts shielded, addresses public) with selective disclosure via view keys align with the permissioned nature of StabiFi's PrivateCoin tokens. Institutional users who need privacy for treasury operations can use Arc's confidential transfers while still providing auditors with view key access.
-
-### Circle Tools Used
-
-| Tool | How We Use It | Purpose |
-|------|--------------|---------|
-| **Arc** | HardPeg contract deployed on Arc Testnet (chain 5042002) | Settlement layer for stablecoin-backed instances |
-| **USDC** | Primary collateral asset; gas token on Arc | Vault backing + transaction fees |
-| **Bridge Kit** (CCTP) | `@circle-fin/bridge-kit` wrapping CCTP V2 | Bridge USDC from any supported chain to Arc |
-
-### Bridge Kit Integration
-
-```typescript
-// frontend/src/hooks/useBridgeToArc.ts
-import { createBridgeKit } from "@circle-fin/bridge-kit";
-import { viemAdapter } from "@circle-fin/bridge-kit/viem";
-
-const kit = createBridgeKit();
-
-await kit.bridge({
-  from: { adapter: viemAdapter(walletClient), chain: BridgeChain.Arbitrum },
-  to:   { adapter: viemAdapter(walletClient), chain: BridgeChain.Arc_Testnet },
-  amount: usdcAmount,
-});
-```
-
-The Bridge Kit handles the full CCTP lifecycle: ERC-20 approval, burn on the source chain, attestation retrieval from Circle, and mint on Arc.
-
-### Supported Bridge Routes
-
-| Source Chain | Chain ID | USDC Address | Status |
-|-------------|----------|--------------|--------|
-| Arbitrum | 42161 | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | Live |
-| Arbitrum Sepolia | 421614 | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` | Live |
-| Base Sepolia | 84532 | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` | Live |
-
-### Arc Deployment
-
-| Contract | Address | Chain |
-|----------|---------|-------|
-| HardPeg | `0xa642feDfd1B9e5C1d93aA85C9766761F642eA462` | Arc Testnet (5042002) |
+**Liquidator role isolation.** Liquidators can self-mint app tokens during a liquidation but cannot hold, receive, or transfer them in any other context — enforced in `PrivateCoin` independently of the engine.
 
 ---
 
-## 6. LI.FI Integration
+## Testing Infrastructure
 
-### Why LI.FI
+| Suite | Description |
+|---|---|
+| Unit | All shared modules, all three pegs, PrivateCoin, Timelock |
+| Fuzz (property) | `RiskMathLib`, oracle price validity |
+| Invariant / Agent | Conservation (`Σcollateral == pool`), solvency (`pool ≥ supply`), typed agent simulations |
 
-The core challenge for any DeFi vault is **deposit friction**. If a vault accepts USDC on Arbitrum, a user holding ETH on Polygon must: (1) find a bridge, (2) bridge to Arbitrum, (3) find a DEX, (4) swap to USDC, (5) approve, (6) deposit. That's 6 separate interactions across multiple interfaces.
-
-LI.FI collapses this into a **single flow within our application**. The user selects any token on any chain, gets a quote, and executes — LI.FI handles bridge selection, DEX routing, and execution under the hood.
-
-### What LI.FI Unlocks
-
-**1. Universal Deposits — "Deposit From Anywhere"**
-Users can deposit into StabiFi vaults from any of 60+ EVM chains using any token. LI.FI's routing layer queries 27 bridges and 31 DEX aggregators to find the optimal path. This means:
-- No need to leave our application to prepare assets
-- No need to know which bridge is cheapest or most reliable
-- No manual multi-step swapping
-
-**2. Composer for Atomic Multi-Step Execution (MediumPeg)**
-For the MediumPeg on Arbitrum, the deposit target is `waArbUSDCn` — Aave's wrapped USDC vault token. LI.FI Composer handles the entire sequence atomically:
-- Bridge source tokens to Arbitrum (if cross-chain)
-- Swap to USDC on Arbitrum
-- Deposit USDC into the Aave waArbUSDCn vault
-- Deliver vault shares to the user
-
-All of this happens in one user-facing transaction via Composer's on-chain VM, which compiles the multi-step recipe into bytecode and executes it atomically with dynamic output injection between steps.
-
-**3. Multi-Destination Best Route Selection**
-Our integration goes beyond single-path quoting. For HardPeg deposits (which route through CCTP to Arc), we quote to multiple intermediary chains in parallel:
-
-```typescript
-// frontend/src/hooks/useLifi.ts
-const QUOTE_DESTINATIONS = [
-  { chainId: 42161, usdc: "0xaf88..." }, // Arbitrum
-  { chainId: 8453,  usdc: "0x8335..." }, // Base
-];
-
-// Quote to all destinations simultaneously
-const results = await Promise.allSettled(
-  destinations.map(dest => getQuote({
-    fromChain, fromToken, fromAmount,
-    toChain: dest.chainId,
-    toToken: dest.usdc,
-  }))
-);
-
-// Pick the route with the highest output
-const bestRoute = results
-  .filter(r => r.status === "fulfilled")
-  .sort((a, b) => b.toAmount - a.toAmount)[0];
-```
-
-This ensures users always get the maximum USDC output, regardless of which intermediary chain offers the best rate at that moment.
-
-**4. Liquidity Aggregation Across All Supported Chains**
-By integrating LI.FI, StabiFi effectively treats all liquidity across all 60+ EVM chains as a single pool. A vault on Arc doesn't just draw from Arc-native liquidity — it can attract deposits from Ethereum whales, Polygon users, Base degens, and anyone else with tokens on any supported chain. This dramatically increases the addressable market for each stablecoin instance.
-
-### LI.FI SDK Integration
-
-```typescript
-// frontend/src/config/lifi.ts
-import { createConfig, EVM } from "@lifi/sdk";
-
-createConfig({
-  integrator: "stabifi",
-  providers: [
-    EVM({
-      getWalletClient: () => getWalletClient(wagmiConfig),
-      switchChain: async (chainId) => {
-        const chain = await switchChain(wagmiConfig, { chainId });
-        return getWalletClient(wagmiConfig, { chainId: chain.id });
-      },
-    }),
-  ],
-});
-```
-
-### Custom Hooks
-
-| Hook | Purpose |
-|------|---------|
-| `useLifiTokens(wallet)` | Loads all EVM chains + tokens; lazy-loads per-chain balances |
-| `useLifiQuote()` | Multi-destination parallel quoting with best-route selection |
-| `useLifiExecution()` | Route execution with status tracking (idle → swapping → approving → depositing → done) |
-
-### Token Selector UX
-
-The frontend includes a full token selector modal powered by LI.FI data:
-- Left panel: all supported EVM chains
-- Right panel: tokens on the selected chain, sorted by balance
-- Search: filter by token name or symbol
-- Lazy balance loading: balances load per-chain on demand to avoid excessive RPC calls
+Fuzz agent types: `RETAIL`, `ARB`, `WHALE`, `GRIEFER` — each with a distinct behavioral distribution across deposit/mint/redeem/transfer. Oracle prices evolve probabilistically per simulation tick using a seeded random walk.
 
 ---
 
-## 7. ENS Integration
+## Future Improvements
 
-### Why ENS
-
-In a stablecoin protocol with permissioned access, addresses are everywhere — app owners, authorized users, mint recipients, transfer destinations. Raw 0x addresses are error-prone and impossible to remember. ENS replaces these with human-readable names.
-
-### Integration Points
-
-**1. User Management — Adding/Removing Authorized Users**
-Instance owners manage who can mint, hold, and transfer their stablecoin. Instead of copy-pasting `0x65Abb39A4c63A459c4ADD5af08E7877e546bE577`, the owner enters `treasury.company.eth`. The frontend resolves this via ENS before submitting the transaction.
-
-This is particularly valuable for **payroll or payout use cases** (relevant to Arc's "Build Global Payouts" track). A company deploying a stablecoin instance for payroll can maintain a roster of `alice.company.eth`, `bob.company.eth`, etc. — far more auditable and less error-prone than a spreadsheet of hex addresses.
-
-**2. Mint Recipient Resolution**
-When minting stablecoins to a recipient (`mint(appId, to, amount)`), the `to` address can be entered as an ENS name. This reduces the risk of sending tokens to a wrong address — a critical concern for a protocol handling real collateral.
-
-**3. Instance Owner Display**
-On the home page and instance detail pages, instance owners are displayed with their ENS names (when available) instead of truncated hex addresses. This makes it easier to identify who operates each stablecoin instance.
-
-**4. ENS Text Records for Instance Metadata**
-ENS names can store arbitrary key-value text records. Stablecoin instances could store metadata in their owner's ENS records:
-- `com.stabifi.instance.1.description` → "ACME Corp Employee Credits"
-- `com.stabifi.instance.1.terms` → IPFS hash of terms of service
-- `com.stabifi.instance.1.website` → instance-specific landing page
-
-This enables **decentralized, verifiable metadata** without requiring a centralized backend.
-
-### Technical Implementation
-
-ENS resolution in the frontend uses wagmi's built-in ENS hooks:
-
-```typescript
-import { useEnsAddress, useEnsName, useEnsAvatar } from "wagmi";
-
-// Resolve name → address (for user input)
-const { data: address } = useEnsAddress({ name: "alice.eth" });
-
-// Resolve address → name (for display)
-const { data: ensName } = useEnsName({ address: "0x..." });
-
-// Resolve avatar (for profile display)
-const { data: avatar } = useEnsAvatar({ name: "alice.eth" });
-```
-
-No additional dependencies are needed — wagmi already includes ENS resolution via viem's ENS-aware transport.
+- Oracle fallback: secondary feed if primary is stale or invalid
+- Cross-chain `PrivateCoin` via LayerZero / Li.Fi
+- Scenario attack scripts: oracle flash manipulation, sandwich deposit/withdraw, precision drain over many rounds
+- Batch liquidation endpoint for liquidator bots
+- Full deployment and test parity for `MediumPeg` and `SoftPeg`
+- Formal verification of share-math invariants
 
 ---
 
-## 8. Frontend Architecture
+## License
 
-### Stack
-
-| Technology | Version | Purpose |
-|-----------|---------|---------|
-| Next.js | 16 | React framework with Server Components |
-| React | 19 | UI rendering |
-| wagmi | Latest | Ethereum hooks (contract reads/writes, ENS, wallet) |
-| viem | Latest | Low-level EVM interactions |
-| @reown/appkit | Latest | Wallet connection (WalletConnect, injected, Coinbase) |
-| @lifi/sdk | 3.15.5 | Cross-chain swaps and bridge routing |
-| @circle-fin/bridge-kit | 1.5.0 | Circle CCTP bridge for USDC |
-| Tailwind CSS + shadcn/ui | Latest | Styling and UI components |
-| Framer Motion | Latest | Animations |
-
-### Pages
-
-| Route | Component | Description |
-|-------|-----------|-------------|
-| `/` | `app/page.tsx` | Home — discovers all instances via on-chain events, displays user's instances |
-| `/create` | `app/create/page.tsx` | 5-step wizard: Name → Peg Type → Collateral → Permissions → Deploy |
-| `/instance/[id]` | `app/instance/[id]/page.tsx` | Instance management: Overview, Collateral, Users, Vault Operations |
-
-### Key Components
-
-| Component | File | Description |
-|-----------|------|-------------|
-| `DepositFlow` | `components/instance/DepositFlow.tsx` | Orchestrates the full deposit flow: route detection, LI.FI quoting, bridge execution, contract deposit |
-| `VaultOperations` | `components/instance/VaultOperations.tsx` | Tabbed interface for Deposit, Mint, Redeem, Withdraw |
-| `TokenSelectorModal` | `components/instance/TokenSelectorModal.tsx` | Multi-chain token picker with lazy balance loading |
-| `StepTracker` | `components/instance/StepTracker.tsx` | Animated progress indicator during multi-step deposit flows |
-| `CreateWizard` | `components/create/` | 5-step instance creation flow |
-
-### Wallet Integration
-
-The frontend uses Reown AppKit (successor to WalletConnect) for wallet connection, supporting:
-- MetaMask and other injected wallets
-- WalletConnect protocol (mobile wallets)
-- Coinbase Wallet
-- Social login via Reown
-
-Chain switching is handled automatically — when a user selects a token on a different chain, the frontend prompts for a chain switch before executing the LI.FI route.
-
----
-
-## 9. Product Feedback for Circle
-
-### What Works Well
-
-**Bridge Kit + viem integration**: The `createBridgeKit()` + `viemAdapter()` pattern integrates cleanly into a wagmi/viem stack. Having the full CCTP lifecycle (approve, burn, attest, mint) abstracted into a single `kit.bridge()` call reduces integration complexity significantly.
-
-**Arc Testnet EVM compatibility**: Standard Foundry/viem tooling works without modifications. Deploying Solidity contracts to Arc is identical to deploying to any other EVM chain — zero onboarding friction.
-
-**USDC as native gas**: For a stablecoin-native protocol, users never needing to acquire a volatile gas token is a meaningful UX improvement. Transaction cost accounting in USD terms is natural for this domain.
-
-**Arc as USDC consolidation point**: Deploying our HardPeg vault on Arc means deposits from any CCTP-connected chain pool into one place. This avoids fragmenting vault liquidity across chains, which is the default problem for multi-chain DeFi.
-
-### Suggestions for Improvement
-
-**Bridge Kit testnet chain coverage**: The set of testnet chains supported by Bridge Kit is smaller than mainnet. Broader testnet support (e.g., Sepolia <-> Arc Testnet) would make it easier to test full cross-chain flows during development.
-
-**Gateway Hooks for custom contracts**: Gateway Hooks (atomic mint + contract call) would be ideal for our use case — a user could deposit USDC on Ethereum and have it atomically mint on Arc and deposit into our vault in one transaction. Currently this requires two separate user actions (bridge, then deposit). Documentation and testnet support for integrating custom contracts with Hooks would be very valuable.
-
----
-
-## Appendix: Contract Addresses
-
-### Production Deployments
-
-| Contract | Chain | Chain ID | Address |
-|----------|-------|----------|---------|
-| HardPeg | Arc Testnet | 5042002 | `0xa642feDfd1B9e5C1d93aA85C9766761F642eA462` |
-| MediumPeg | Arbitrum One | 42161 | `0xa642feDfd1B9e5C1d93aA85C9766761F642eA462` |
-
-### Token Addresses
-
-| Token | Chain | Address |
-|-------|-------|---------|
-| USDC | Arc Testnet | `0x3600000000000000000000000000000000000001` |
-| USDC | Arbitrum | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
-| waArbUSDCn | Arbitrum | `0x7CFaDFD5645B50bE87d546f42787c3b20CdBDe32` |
-| USDC | Arbitrum Sepolia | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
-| USDC | Base Sepolia | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
-
-### External Contracts
-
-| Contract | Chain | Address |
-|----------|-------|---------|
-| LI.FI Diamond | All EVM chains | `0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE` |
-| Aave waArbUSDCn Vault | Arbitrum | `0x7CFaDFD5645B50bE87d546f42787c3b20CdBDe32` |
+UNLICENSED
